@@ -1,0 +1,136 @@
+/* Authorization Letter Styles - Compact V2 */
+.a4-container {
+    width: 210mm;
+    min-height: 297mm;
+    background: white;
+    box-shadow: 0 0 40px rgba(0, 0, 0, 0.4);
+    margin: 20px auto;
+    font-family: 'Times New Roman', Times, serif;
+    font-size: 9.5pt;
+    /* Slightly reduced for better fit */
+    color: #000;
+}
+
+.letter-page {
+    padding: 10mm 15mm 5mm 15mm;
+    /* Reduced bottom padding */
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.header-section {
+    border-bottom: none;
+    padding-bottom: 0;
+    margin-bottom: 5px;
+}
+
+/* Tighter Text Justification */
+.text-justify {
+    text-align: justify;
+    line-height: 1.25;
+    /* Compact line height */
+}
+
+/* Seal Styles */
+.company-seal {
+    max-width: 80px;
+    filter: grayscale(100%) brightness(0);
+    opacity: 0.9;
+}
+
+/* Specific overrides for tables */
+.hospital-form table td {
+    padding: 1px 0;
+    /* Minimal vertical padding */
+    vertical-align: top;
+}
+
+.info-table td {
+    padding: 2px 0;
+    vertical-align: middle;
+}
+
+.info-label {
+    width: 35%;
+    font-weight: bold;
+}
+
+/* Hospital Box */
+.hospital-form {
+    border: 1px solid #000;
+    padding: 5px 8px;
+    /* Tighter padding */
+    margin-top: 10px;
+    margin-top: 10px;
+    font-size: 9.5pt;
+}
+
+.label-box {
+    border: 1px solid #999;
+    padding: 2px 8px;
+    width: 140px;
+    font-weight: 600;
+    color: #000;
+    display: flex;
+    align-items: center;
+    font-size: 9pt;
+    height: 24px;
+}
+
+/* Footer & Disclaimer */
+.footer-section {
+    margin-top: auto;
+    padding-top: 5px;
+}
+
+.disclaimer {
+    font-size: 8pt;
+    font-style: italic;
+    margin-top: 5px;
+    line-height: 1.1;
+}
+
+.footer-address {
+    font-size: 8pt;
+    text-align: center;
+    color: #444;
+}
+
+/* Header Logo */
+.header-logo {
+    max-height: 45px;
+    /* Smaller to save vertical space */
+}
+
+/* Print Overrides */
+@media print {
+    body * {
+        visibility: hidden;
+    }
+
+    .a4-container,
+    .a4-container * {
+        visibility: visible;
+    }
+
+    .a4-container {
+        position: fixed;
+        left: 0;
+        top: 0;
+        margin: 0;
+        padding: 0;
+        box-shadow: none;
+        width: 100%;
+        min-height: 100%;
+    }
+
+    .no-print {
+        display: none !important;
+    }
+
+    @page {
+        size: A4;
+        margin: 0;
+    }
+}

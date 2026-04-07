@@ -1,0 +1,54 @@
+{
+  "id": "/crm/",
+  "name": "Documantraa CRM",
+  "short_name": "CRM",
+  "description": "Documantraa Investigation & Security Services CRM",
+  "start_url": "./login.php",
+  "scope": "/crm/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "background_color": "#ffffff",
+  "theme_color": "#0d2b4a",
+  "orientation": "portrait",
+  "dir": "ltr",
+  "lang": "en",
+  "categories": ["business", "productivity"],
+  "icons": [
+    {
+      "src": "../assets/favicon/favicon-32x32.png",
+      "sizes": "32x32",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "../assets/favicon/apple-touch-icon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "../assets/images/documantraa_logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "../assets/images/hero-bg.jpg",
+      "sizes": "1280x720",
+      "type": "image/jpeg",
+      "form_factor": "wide"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dash",
+      "description": "View CRM Dashboard",
+      "url": "./dashboard.php",
+      "icons": [{ "src": "../assets/favicon/apple-touch-icon.png", "sizes": "192x192" }]
+    }
+  ],
+  "prefer_related_applications": false
+}

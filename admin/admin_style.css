@@ -1,0 +1,250 @@
+:root {
+    --glass-bg: rgba(28, 28, 30, 0.65);
+    --glass-border: rgba(84, 84, 88, 0.3);
+    --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+    --text-primary: #ffffff;
+    --text-secondary: #8E8E93;
+    --accent-color: #0A84FF;
+    --accent-gradient: linear-gradient(135deg, #0A84FF 0%, #007AFF 100%);
+    --bg-gradient: radial-gradient(circle at 50% 0%, #000000 0%, #121212 50%, #1c1c1e 100%);
+}
+
+html,
+body {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+body {
+    background: var(--bg-gradient);
+    background-size: cover;
+    background-attachment: fixed;
+    color: var(--text-primary) !important;
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+span,
+div,
+a,
+li,
+label {
+    color: var(--text-primary);
+}
+
+/* Glassmorphism Utilities */
+.glass-panel {
+    background: var(--glass-bg);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--glass-border);
+    border-radius: 16px;
+    box-shadow: var(--glass-shadow);
+    color: #fff;
+}
+
+.glass-card {
+    background: rgba(44, 44, 46, 0.4);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    padding: 20px;
+    transition: transform 0.3s ease, box-shadow 0.3s ease, background 0.3s;
+    color: #fff;
+}
+
+.glass-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Sidebar */
+.sidebar {
+    background: #000000;
+    backdrop-filter: blur(20px);
+    border-right: 1px solid var(--glass-border);
+    min-height: 100vh;
+}
+
+.sidebar h4 {
+    font-weight: 800;
+    letter-spacing: 2px;
+    background: var(--accent-gradient);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.sidebar a {
+    color: var(--text-secondary) !important;
+    border-radius: 8px;
+    margin-bottom: 5px;
+    transition: all 0.3s;
+    border: 1px solid transparent;
+}
+
+.sidebar a:hover,
+.sidebar a.active {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff !important;
+    border-color: var(--glass-border);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+}
+
+/* Forms & Inputs */
+.form-control,
+.form-select {
+    background: rgba(118, 118, 128, 0.24) !important;
+    border: 1px solid var(--glass-border) !important;
+    color: #fff !important;
+    border-radius: 8px;
+}
+
+.form-control:focus,
+.form-select:focus {
+    background: rgba(118, 118, 128, 0.35) !important;
+    border-color: var(--accent-color) !important;
+    color: #fff !important;
+    box-shadow: 0 0 0 0.25rem rgba(10, 132, 255, 0.25);
+}
+
+.form-label {
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Tabs */
+.nav-tabs {
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.nav-tabs .nav-link {
+    color: var(--text-secondary);
+    border: none;
+    border-bottom: 2px solid transparent;
+    transition: all 0.3s;
+}
+
+.nav-tabs .nav-link:hover {
+    color: #fff;
+    border-color: transparent;
+}
+
+.nav-tabs .nav-link.active {
+    background: transparent;
+    color: var(--accent-color);
+    border-bottom: 2px solid var(--accent-color);
+}
+
+/* Buttons */
+.btn-primary {
+    background: var(--accent-gradient);
+    border: none;
+    box-shadow: 0 4px 15px rgba(0, 210, 255, 0.3);
+    color: #fff;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #3a7bd5 0%, #00d2ff 100%);
+    box-shadow: 0 6px 20px rgba(0, 210, 255, 0.5);
+    color: #fff;
+}
+
+/* Glare Effect */
+.glare-container {
+    position: relative;
+    overflow: hidden;
+}
+
+.glare-container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 50%;
+    height: 100%;
+    background: linear-gradient(to right, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.1) 50%, rgba(255, 255, 255, 0) 100%);
+    transform: skewX(-25deg);
+    animation: glare 6s infinite;
+    pointer-events: none;
+}
+
+@keyframes glare {
+    0% {
+        left: -100%;
+    }
+
+    20% {
+        left: 200%;
+    }
+
+    100% {
+        left: 200%;
+    }
+}
+
+@keyframes gradientBG {
+    0% {
+        background-position: 0% 50%;
+    }
+
+    50% {
+        background-position: 100% 50%;
+    }
+
+    100% {
+        background-position: 0% 50%;
+    }
+}
+
+/* Bento Grid Layout */
+.bento-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.card-header {
+    background: rgba(255, 255, 255, 0.05);
+    border-bottom: 1px solid var(--glass-border);
+    color: var(--accent-color);
+}
+
+.text-muted {
+    color: #a0a0a0 !important;
+}
+
+/* Table Hover Glare Effect */
+.table-hover tbody tr {
+    transition: all 0.3s ease;
+}
+
+.table-hover tbody tr:hover {
+    background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.08) 50%, rgba(255, 255, 255, 0) 100%) !important;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    transform: scale(1.01);
+    z-index: 10;
+    position: relative;
+}
+
+.table-hover tbody tr:hover td {
+    color: #fff !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.table-hover tbody tr:hover .text-white-50,
+.table-hover tbody tr:hover .text-muted {
+    color: rgba(255, 255, 255, 0.9) !important;
+}

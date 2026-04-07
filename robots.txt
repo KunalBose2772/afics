@@ -1,0 +1,25 @@
+# Robots.txt for Documantraa
+
+User-agent: *
+Allow: /
+
+# Disallow admin and CRM areas
+Disallow: /admin/
+Disallow: /crm/
+Disallow: /config/
+Disallow: /includes/
+Disallow: /database/
+Disallow: /migrations/
+Disallow: /tools/
+Disallow: /uploads/
+
+# Disallow utility scripts
+Disallow: /grant_admin_rights.php
+Disallow: /add_slugs.php
+Disallow: /router.php
+
+# Allow assets
+Allow: /assets/
+
+# Sitemap location (create sitemap.xml file)
+Sitemap: https://documantraa.in/sitemap.xml

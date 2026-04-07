@@ -1,0 +1,7 @@
+RewriteEngine On
+DirectoryIndex dashboard.php index.php
+
+# Rewrites for extensionless URLs inside V2
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME}.php -f
+RewriteRule ^(.+)$ $1.php [L,QSA]

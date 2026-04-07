@@ -1,0 +1,28 @@
+RewriteEngine On
+
+# Service detail URLs
+RewriteRule ^service/([a-z0-9-]+)$ service-detail.php?slug=$1 [L,QSA]
+
+# Remove .php extension
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteRule ^([^\.]+)$ $1.php [NC,L]
+
+# Prevent directory listing
+Options -Indexes
+
+# Default index
+DirectoryIndex index.php
+
+# Prevent caching of .htaccess changes
+<FilesMatch "\.htaccess$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires 0
+</FilesMatch>
+
+# Security headers
+<IfModule mod_headers.c>
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-Content-Type-Options "nosniff"
+</IfModule>

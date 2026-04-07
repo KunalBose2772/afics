@@ -1,0 +1,30 @@
+/* --- Action Scroll Container (Mobile Horizontal Scroll) --- */
+.action-scroll {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+    /* Space for scrollbar if visible, effectively padding */
+    margin-bottom: 24px;
+    scrollbar-width: none;
+    /* Hide scrollbar Firefox */
+    -webkit-overflow-scrolling: touch;
+    /* Smooth scroll iOS */
+    white-space: nowrap;
+}
+
+.action-scroll::-webkit-scrollbar {
+    display: none;
+    /* Hide scrollbar Chrome/Safari */
+}
+
+.action-scroll .btn-v2 {
+    flex-shrink: 0;
+    /* Prevent shrinking */
+    white-space: nowrap;
+}
+
+@media (min-width: 768px) {
+    /* On larger screens, maybe we don't need horizontal scroll, but user specifically asked for mobile consistency. 
+       We can keep it horizontal or wrap. For dashboard, horizontal is often cleaner for "Quick Actions" */
+}

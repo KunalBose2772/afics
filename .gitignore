@@ -1,0 +1,93 @@
+# Environment and Configuration
+config/db.php
+.env
+.env.local
+.env.production
+
+# Uploads and User Generated Content
+uploads/*
+!uploads/.gitkeep
+assets/images/uploads/*
+!assets/images/uploads/.gitkeep
+assets/images/services/*
+!assets/images/services/.gitkeep
+
+# Logs
+*.log
+logs/
+error_log
+php_errors.log
+
+# Cache
+cache/
+tmp/
+temp/
+
+# IDE and Editor Files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# Composer
+vendor/
+composer.phar
+composer.lock
+
+# NPM
+node_modules/
+package-lock.json
+npm-debug.log
+yarn.lock
+
+# Build Files
+dist/
+build/
+
+# Backup Files
+*.bak
+*.backup
+*.old
+*~
+
+# Database Dumps
+*.sql
+*.sqlite
+*.db
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary Files
+*.tmp
+*.temp
+
+# Documentation Build
+docs/_build/
+
+# Test Files
+tests/
+phpunit.xml
+.phpunit.result.cache
+
+# Sensitive Files
+_setup/
+grant_admin_rights.php
+add_slugs.php
+test*.php
+debug*.php
+
+# Development Directories (removed from production)
+docs/
+tools/

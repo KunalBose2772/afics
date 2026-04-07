@@ -1,0 +1,4 @@
+Claim Number,Patient Name,Scope,Hospital Name,Hospital Address,TAT Deadline (YYYY-MM-DD),Diagnosis,UHID,Patient Phone
+TPA12345,John Doe,Full Investigation,City General Hospital,Main St,2026-04-10,Low Cost,SIR4000,+91 9999988888
+TPA67890,Sita Sharma,Hospital Part,Greenwood Clinic,North Lane,2026-04-12,Trauma,SIR4001,
+TPA11122,Rahul Gupta,Pt Part,Apollo Hospital,East Plaza,2026-04-15,Cardiac,SIR4002,+91 7777766666
