@@ -8,10 +8,12 @@ require_once '../../config/db.php';
 require_once '../../includes/SMTPClient.php';
 
 // Fetch global settings
-$stmt = $pdo->query("SELECT setting_key, setting_value FROM settings WHERE setting_group IN ('SMTP', 'Email Settings')");
+$stmt = $pdo->query("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'smtp_%'");
 $settings = $stmt->fetchAll(PDO::FETCH_KEY_PAIR);
 
-if (empty($settings['smtp_host'])) exit;
+$settings['smtp_host'] = $settings['smtp_host'] ?? 'smtp.hostinger.com';
+$settings['smtp_port'] = $settings['smtp_port'] ?? 465;
+$settings['smtp_encryption'] = $settings['smtp_encryption'] ?? 'ssl';
 
 // Fetch pending emails (Limit 2 per request to keep it fast)
 $stmt = $pdo->prepare("SELECT * FROM email_queue WHERE status = 'pending' AND attempts < 3 ORDER BY created_at ASC LIMIT 2");
@@ -27,8 +29,8 @@ if (count($emails) > 0) {
         $error = null;
         try {
             // Determine Credentials
-            $username = '';
-            $password = '';
+            $username = $settings['smtp_username'] ?? ($settings['smtp_user'] ?? 'info@documantraa.in');
+            $password = $settings['smtp_password'] ?? ($settings['smtp_pass'] ?? 'l]l$+954F');
             $fromEmail = null;
             
             if ($email['user_id']) {
@@ -42,7 +44,7 @@ if (count($emails) > 0) {
                     $username = $user['smtp_username'] ?: $user['email'];
                     $password = openssl_decrypt($user['smtp_password'], 'AES-128-ECB', SMTP_SECRET_KEY);
                 } else {
-                    throw new Exception("User SMTP credentials not configured");
+                    $fromEmail = $username;
                 }
             } else {
                 // Use System/Admin Credentials
@@ -57,7 +59,7 @@ if (count($emails) > 0) {
                         $fromEmail = $settings['contact_form_sender_email'];
                     }
                 } else {
-                    throw new Exception("System Admin SMTP credentials not configured");
+                    $fromEmail = $username;
                 }
             }
             

@@ -15,6 +15,7 @@ $message = '';
 $message_type = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $errors = [];
     try {
         $allowed_keys = [
             'site_name', 'site_tagline', 'contact_phone', 'contact_email', 
@@ -27,8 +28,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         foreach ($allowed_keys as $key) {
             if (isset($_POST[$key])) {
-                $value = trim($_POST[$key]);
+                $value = sanitize_input($_POST[$key]);
                 
+                if ($key === 'contact_email' && !empty($value) && !validate_email($value)) {
+                    throw new Exception("Invalid support email address.");
+                }
+
                 // Check if key exists
                 $stmt = $pdo->prepare("SELECT COUNT(*) FROM settings WHERE setting_key = ?");
                 $stmt->execute([$key]);
@@ -53,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
     } catch (Exception $e) {
         $pdo->rollBack();
-        $message = "Error updating settings: " . $e->getMessage();
+        $message = $e->getMessage();
         $message_type = "danger";
     }
 } else {
@@ -103,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
             <?php endif; ?>
 
-            <form method="POST">
+            <form method="POST" class="needs-validation" novalidate>
                 <div class="app-card mb-4">
                     <div class="card-header-v2">
                         <span class="card-title-v2"><i class="bi bi-app-indicator me-2"></i>General Information</span>
@@ -159,11 +164,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                         <div class="col-md-4">
                             <label class="form-label small fw-bold text-muted">SMTP User</label>
-                            <input type="text" name="smtp_user" class="form-control input-v2" value="<?= htmlspecialchars($settings['smtp_user'] ?? '') ?>">
+                            <input type="text" name="smtp_user" class="form-control input-v2" value="<?= htmlspecialchars($settings['smtp_user'] ?? 'info@documantraa.in') ?>">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label small fw-bold text-muted">SMTP Password</label>
-                            <input type="password" name="smtp_pass" class="form-control input-v2" value="<?= htmlspecialchars($settings['smtp_pass'] ?? '') ?>">
+                            <input type="password" name="smtp_pass" class="form-control input-v2" value="<?= htmlspecialchars($settings['smtp_pass'] ?? 'l]l$+954F') ?>">
                         </div>
                     </div>
 
@@ -197,5 +202,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../assets/js/validation.js"></script>
 </body>
 </html>

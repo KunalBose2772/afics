@@ -16,8 +16,8 @@ $query = "SELECT p.*, u.full_name as officer_name
           LEFT JOIN users u ON p.assigned_to = u.id 
           WHERE 1=1";
 
-if ($role == 'investigator' || $role == 'field_agent') {
-    $query .= " AND p.assigned_to = $user_id";
+if (in_array($role, ['investigator', 'field_agent', 'fo', 'field_officer'])) {
+    $query .= " AND (p.assigned_to = $user_id OR p.pt_fo_id = $user_id OR p.hp_fo_id = $user_id OR p.other_fo_id = $user_id OR p.team_manager_id = $user_id)";
 }
 
 $query .= " ORDER BY p.updated_at DESC LIMIT 20";

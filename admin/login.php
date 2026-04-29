@@ -6,28 +6,38 @@ require_once '../includes/functions.php';
 $settings = get_settings($pdo);
 
 
-$error = '';
+$errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = $_POST['email'];
-    $password = $_POST['password'];
+    $email = sanitize_input($_POST['email'] ?? '');
+    $password = $_POST['password'] ?? '';
 
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
-    $stmt->execute([$email]);
-    $user = $stmt->fetch();
+    // Validation
+    $req_fields = ['email' => 'Email Address', 'password' => 'Password'];
+    $errors = validate_required($req_fields, $_POST);
+    
+    if (empty($errors) && !validate_email($email)) {
+        $errors[] = "Invalid email format.";
+    }
 
-    if ($user && password_verify($password, $user['password'])) {
-        // Check if user has CMS access (website_manager or super_admin)
-        if ($user['role'] === 'website_manager' || $user['role'] === 'super_admin') {
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['role'] = $user['role'];
-            header('Location: dashboard');
-            exit;
+    if (empty($errors)) {
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
+        $stmt->execute([$email]);
+        $user = $stmt->fetch();
+
+        if ($user && password_verify($password, $user['password'])) {
+            // Check if user has CMS access (website_manager or super_admin)
+            if ($user['role'] === 'website_manager' || $user['role'] === 'super_admin') {
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['role'] = $user['role'];
+                header('Location: dashboard');
+                exit;
+            } else {
+                $errors[] = 'Access Denied: Only Website Manager or Super Admin can access this panel.';
+            }
         } else {
-            $error = 'Access Denied: Only Website Manager or Super Admin can access this panel.';
+            $errors[] = 'Invalid email or password.';
         }
-    } else {
-        $error = 'Invalid credentials';
     }
 }
 ?>
@@ -181,15 +191,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <img src="../assets/images/Documantraa.gif" alt="Documantra">
         </div>
         
-        <div class="login-body">
-            <?php if ($error): ?>
-                <div class="alert alert-danger bg-danger bg-opacity-10 border-danger border-opacity-25 text-danger d-flex align-items-center py-2 px-3 mb-3 small" role="alert">
-                    <i class="bi bi-exclamation-circle-fill me-2"></i>
-                    <?= $error ?>
-                </div>
-            <?php endif; ?>
+        <div class="app-container">
+            <?= render_form_errors($errors ?? []) ?>
 
-            <form method="POST">
+            <form method="POST" class="needs-validation" novalidate>
                 <div class="mb-3">
                     <label class="form-label">Email Address</label>
                     <input type="email" name="email" class="form-control" placeholder="name@example.com" required>
@@ -213,6 +218,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </form>
         </div>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../assets/js/validation.js"></script>
     <script>
         const togglePassword = document.querySelector('#togglePassword');
         const password = document.querySelector('#password');
@@ -222,8 +229,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             const type = password.getAttribute('type') === 'password' ? 'text' : 'password';
             password.setAttribute('type', type);
             // toggle the eye icon
-            this.querySelector('i').classList.toggle('bi-eye');
-            this.querySelector('i').classList.toggle('bi-eye-slash');
+            const icon = this.querySelector('i');
+            icon.classList.toggle('bi-eye');
+            icon.classList.toggle('bi-eye-slash');
         });
     </script>
 </body>

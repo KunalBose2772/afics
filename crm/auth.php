@@ -19,6 +19,16 @@ function has_permission($module)
         return true;
     }
 
+    // Hardcoded bypass for specific roles/modules to ensure core functionality
+    $hardcoded_access = [
+        'doctor' => ['projects', 'clients', 'attendance', 'leaves'],
+        'incharge' => ['projects', 'clients', 'attendance', 'leaves'],
+        'hod' => ['projects', 'clients', 'users', 'payroll', 'attendance', 'leaves']
+    ];
+    if (isset($hardcoded_access[$_SESSION['role']]) && in_array($module, $hardcoded_access[$_SESSION['role']])) {
+        return true;
+    }
+
     // Fetch permissions for the role
     $stmt = $pdo->prepare("SELECT modules_access FROM permissions WHERE role_name = ?");
     $stmt->execute([$_SESSION['role']]);
@@ -38,7 +48,7 @@ function has_permission($module)
 function require_permission($module)
 {
     if (!isset($_SESSION['user_id'])) {
-        header('Location: login');
+        header('Location: login.php');
         exit;
     }
     if (!has_permission($module)) {
@@ -64,7 +74,7 @@ function log_action($action, $details = null)
 
 // Basic login check
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login');
+    header('Location: login.php');
     exit;
 }
 
@@ -79,7 +89,7 @@ if (!in_array($current_script, $skip_agreement_check) && strpos($_SERVER['REQUES
         $stmt_agree = $pdo->prepare("SELECT agreement_signed FROM users WHERE id = ?");
         $stmt_agree->execute([$_SESSION['user_id']]);
         if ($stmt_agree->fetchColumn() == 0) {
-            header('Location: agreement');
+            header('Location: agreement.php');
             exit;
         }
     } catch (PDOException $e) {

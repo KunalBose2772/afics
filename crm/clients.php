@@ -6,22 +6,41 @@ require_permission('clients');
 
 // Handle Add Client
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_client'])) {
-    $company_name = $_POST['company_name'];
-    $contact_person = $_POST['contact_person'];
-    $email = $_POST['email'];
-    $phone = $_POST['phone'];
+    $errors = [];
     
-    // Simple validation could go here
+    // Validation
+    $req_fields = [
+        'company_name' => 'Company Name',
+        'contact_person' => 'Contact Person',
+        'email' => 'Email',
+        'phone' => 'Phone'
+    ];
+    $errors = validate_required($req_fields, $_POST);
     
-    $stmt = $pdo->prepare("INSERT INTO clients (company_name, contact_person, email, phone) VALUES (?, ?, ?, ?)");
-    $stmt->execute([$company_name, $contact_person, $email, $phone]);
-    
-    if(function_exists('log_action')) {
-        log_action('ADD_CLIENT', "Added client: $company_name");
+    $email = sanitize_input($_POST['email']);
+    if (empty($errors) && !validate_email($email)) {
+        $errors[] = "Invalid email format.";
     }
-    
-    header('Location: clients.php?success=1');
-    exit;
+
+    if (empty($errors)) {
+        try {
+            $company_name = sanitize_input($_POST['company_name']);
+            $contact_person = sanitize_input($_POST['contact_person']);
+            $phone = sanitize_input($_POST['phone']);
+            
+            $stmt = $pdo->prepare("INSERT INTO clients (company_name, contact_person, email, phone) VALUES (?, ?, ?, ?)");
+            $stmt->execute([$company_name, $contact_person, $email, $phone]);
+            
+            if(function_exists('log_action')) {
+                log_action('ADD_CLIENT', "Added client: $company_name");
+            }
+            
+            header('Location: clients.php?success=1');
+            exit;
+        } catch (Exception $e) {
+            $errors[] = $e->getMessage();
+        }
+    }
 }
 
 // Search Logic
@@ -84,6 +103,7 @@ $total_clients = count($clients);
         </header>
 
         <div class="app-container">
+            <?= render_form_errors($errors ?? []) ?>
             <?php if (isset($_GET['success'])): ?>
                 <div class="alert alert-success d-flex align-items-center mb-4" role="alert" style="background: var(--success-bg); color: var(--success-text); border: none; border-radius: var(--radius-md);">
                     <i class="bi bi-check-circle-fill me-2"></i>
@@ -180,7 +200,7 @@ $total_clients = count($clients);
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4">
-                    <form method="POST">
+                    <form method="POST" class="needs-validation" novalidate>
                         <input type="hidden" name="add_client" value="1">
                         
                         <div class="mb-3">
@@ -238,6 +258,7 @@ $total_clients = count($clients);
     </nav>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../assets/js/validation.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             const urlParams = new URLSearchParams(window.location.search);

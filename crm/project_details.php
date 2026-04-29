@@ -28,25 +28,24 @@ if (!$project) {
 
 // Access Control
 $curr_role = $_SESSION['role'] ?? '';
-$is_ho_staff = in_array($curr_role, ['admin', 'super_admin', 'manager', 'coordinator', 'hr', 'hr_manager', 'doctor']);
+$is_ho_staff = in_array($curr_role, ['admin', 'super_admin', 'manager', 'coordinator', 'hr', 'hr_manager', 'team_manager', 'fo_manager', 'hod']);
 $is_assigned = (
     $project['assigned_to'] == $_SESSION['user_id'] || 
     $project['pt_fo_id'] == $_SESSION['user_id'] || 
     $project['hp_fo_id'] == $_SESSION['user_id'] || 
-    $project['other_fo_id'] == $_SESSION['user_id']
+    $project['other_fo_id'] == $_SESSION['user_id'] ||
+    $project['assigned_doctor_id'] == $_SESSION['user_id']
 );
 
 if (!$is_ho_staff) {
     if (!$is_assigned) die("Access Denied: You are not assigned to this case.");
-    if (in_array($project['status'], ['FO-Closed', 'Completed'])) {
-        // header("Location: projects.php?info=case_closed");
-        // exit;
-    }
 }
 
 // Permissions for financial data
 $is_tm = ($curr_role == 'team_manager' || $curr_role == 'fo_manager');
 $show_fees = ($is_ho_staff || $is_tm || $is_assigned);
+
+$allocation_contact = ['full_name' => 'Global Webify', 'phone' => '+91 85898 34483'];
 
 // Calculate TAT
 $created = new DateTime($project['created_at']);
@@ -81,7 +80,6 @@ if (!$is_overdue && $tat_days < 3) $tat_class = 'text-warning';
         .detail-label { color: var(--text-muted); font-size: 0.9rem; font-weight: 500; }
         .detail-value { color: var(--text-main); font-weight: 600; text-align: right; font-size: 0.95rem; }
         
-        /* Desktop Specifics */
         @media (min-width: 992px) {
             .detail-row {
                 padding: 16px 24px;
@@ -94,9 +92,6 @@ if (!$is_overdue && $tat_days < 3) $tat_class = 'text-warning';
         <div class="d-flex align-items-center gap-2">
             <a href="projects.php" class="text-main"><i class="bi bi-arrow-left fs-4"></i></a>
             <span class="fw-bold ms-2">Claim Details</span>
-        </div>
-        <div>
-           <!-- Action Menu if needed -->
         </div>
     </div>
 
@@ -116,7 +111,19 @@ if (!$is_overdue && $tat_days < 3) $tat_class = 'text-warning';
                                 <?= $project['status'] ?>
                             </span>
                         </div>
-                        <p class="text-muted mb-0 small mt-1" style="font-weight: 500;">Claim #<?= htmlspecialchars($project['claim_number']) ?></p>
+                        <p class="text-muted mb-0 small mt-1" style="font-weight: 500;">
+                            Claim #<?= htmlspecialchars($project['claim_number']) ?> 
+                            <?php 
+                            $dc = $pdo->prepare("SELECT COUNT(*) FROM project_documents WHERE project_id = ?");
+                            $dc->execute([$pid]);
+                            $doc_count = $dc->fetchColumn();
+                            if($doc_count > 0): 
+                            ?>
+                            <span class="ms-2 badge bg-light text-primary border" style="font-size: 0.65rem; padding: 2px 6px;">
+                                <i class="bi bi-paperclip"></i> <?= $doc_count ?> Files
+                            </span>
+                            <?php endif; ?>
+                        </p>
                     </div>
                 </div>
             </div>
@@ -124,17 +131,11 @@ if (!$is_overdue && $tat_days < 3) $tat_class = 'text-warning';
 
         <div class="app-container">
             <div class="row g-4">
-                <!-- Left Column: Details -->
                 <div class="col-lg-8">
-                    <!-- Status Checks -->
                      <div class="d-flex gap-3 mb-4">
                         <div class="d-flex align-items-center gap-2 px-3 py-2 rounded-pill bg-success-subtle text-success border border-success-subtle">
                              <i class="bi bi-check-circle-fill"></i> <span class="fw-bold small">VIP Case</span>
                         </div>
-                         <!-- Example placeholder for blocked status logic -->
-                         <!-- <div class="d-flex align-items-center gap-2 px-3 py-2 rounded-pill bg-danger-subtle text-danger border border-danger-subtle">
-                             <i class="bi bi-slash-circle-fill"></i> <span class="fw-bold small">Blacklisted</span>
-                        </div> -->
                          <div class="ms-auto d-flex align-items-center gap-2 text-muted small">
                             <i class="bi bi-clock"></i> <span class="<?= $tat_class ?> fw-bold"><?= $tat_text ?></span>
                         </div>
@@ -145,7 +146,6 @@ if (!$is_overdue && $tat_days < 3) $tat_class = 'text-warning';
                             <h6 class="mb-0 fw-bold text-uppercase small text-muted">Case Information</h6>
                         </div>
                         <div class="p-3">
-                            <!-- Financial Details for Mobile / Quick View -->
                             <?php if($show_fees): 
                                 $gross_fee = ($project['price_hospital'] ?? 0) + ($project['price_patient'] ?? 0) + ($project['price_other'] ?? 0);
                                 $fine = $project['fine_amount'] ?? 0;
@@ -255,16 +255,13 @@ if (!$is_overdue && $tat_days < 3) $tat_class = 'text-warning';
                         </div>
                     </div>
 
-                    <!-- Description -->
                     <div class="app-card mb-4">
                         <h6 class="card-title-v2 mb-3">Instructions / Description</h6>
                         <p class="text-secondary mb-0"><?= nl2br(htmlspecialchars($project['description'] ?? 'No specific instructions.')) ?></p>
                     </div>
                 </div>
 
-                <!-- Right Column: Actions -->
                 <div class="col-lg-4">
-                    <!-- Mobile Sticky Actions (Bottom) or Desktop Sidebar -->
                     <div class="app-card p-3 mb-3">
                          <h6 class="card-title-v2 mb-3">Quick Actions</h6>
                          <div class="d-grid gap-2">
@@ -274,9 +271,9 @@ if (!$is_overdue && $tat_days < 3) $tat_class = 'text-warning';
                              <a href="project_documents.php?id=<?= $pid ?>" class="btn-v2 btn-white-v2 w-100 py-3">
                                  <i class="bi bi-cloud-upload"></i> Upload Documents
                              </a>
-                             <?php if($is_ho_staff): ?>
-                              <a href="report_builder.php?id=<?= $pid ?>" class="btn-v2 btn-white-v2 w-100 py-3">
-                                 <i class="bi bi-file-text"></i> Report Builder
+                             <?php if($is_ho_staff || $curr_role == 'doctor'): ?>
+                              <a href="investigation_data.php?id=<?= $pid ?>" class="btn-v2 btn-white-v2 w-100 py-3">
+                                 <i class="bi bi-clipboard-data"></i> Edit Report Data
                               </a>
                              <?php endif; ?>
                          </div>
@@ -285,18 +282,11 @@ if (!$is_overdue && $tat_days < 3) $tat_class = 'text-warning';
                     <!-- Contact Card -->
                     <div class="app-card p-3">
                         <h6 class="card-title-v2 mb-3">Support & Coordinates</h6>
-                        <div class="d-flex align-items-center mb-3">
-                            <div class="bg-light rounded-circle p-2 me-3"><i class="bi bi-telephone text-primary"></i></div>
-                            <div>
-                                <div class="small fw-bold">Team Lead</div>
-                                <div class="text-muted small">+91 98765 43210</div>
-                            </div>
-                        </div>
                         <div class="d-flex align-items-center">
                             <div class="bg-light rounded-circle p-2 me-3"><i class="bi bi-whatsapp text-success"></i></div>
                             <div>
                                 <div class="small fw-bold">Allocation Desk</div>
-                                <div class="text-muted small">+91 98765 43210</div>
+                                <div class="text-muted small"><?= htmlspecialchars($allocation_contact['phone']) ?></div>
                             </div>
                         </div>
                     </div>
@@ -326,6 +316,3 @@ if (!$is_overdue && $tat_days < 3) $tat_class = 'text-warning';
         </a>
     </nav>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>

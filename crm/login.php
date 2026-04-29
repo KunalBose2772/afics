@@ -4,34 +4,40 @@ require_once '../config/db.php';
 require_once '../includes/functions.php';
 
 $settings = get_settings($pdo);
-$error = '';
+$errors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = trim($_POST['email']);
-    $password = $_POST['password'];
-    $login_type = $_POST['login_type'] ?? 'employee'; // Capture login type for potential future logic or logging
+    $email = sanitize_input($_POST['email'] ?? '');
+    $password = $_POST['password'] ?? '';
+    $login_type = sanitize_input($_POST['login_type'] ?? 'employee');
 
-    $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
-    $stmt->execute([$email]);
-    $user = $stmt->fetch();
+    // Validation
+    $req_fields = ['email' => 'Email Address', 'password' => 'Password'];
+    $errors = validate_required($req_fields, $_POST);
+    
+    if (empty($errors) && !validate_email($email)) {
+        $errors[] = "Invalid email format.";
+    }
 
-    if ($user && password_verify($password, $user['password'])) {
-        // Optional: you could enforce role mismatch here if desired, 
-        // e.g. if ($user['role'] !== $login_type) ... 
-        // For now, we allow login based on credentials as per original logic.
+    if (empty($errors)) {
+        $stmt = $pdo->prepare("SELECT * FROM users WHERE email = ?");
+        $stmt->execute([$email]);
+        $user = $stmt->fetch();
 
-        // Deny Website Manager from CRM (unless they are super admin)
-        if ($user['email'] === 'websitemanager@documantraa.in' && $user['role'] !== 'super_admin') {
-            $error = 'Access Denied: Website Managers cannot access the Investigator Portal.';
+        if ($user && password_verify($password, $user['password'])) {
+            // Deny Website Manager from CRM (unless they are super admin)
+            if ($user['email'] === 'websitemanager@documantraa.in' && $user['role'] !== 'super_admin') {
+                $errors[] = 'Access Denied: Website Managers cannot access the Investigator Portal.';
+            } else {
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['role'] = $user['role'];
+                $_SESSION['full_name'] = $user['full_name'];
+                header('Location: dashboard.php');
+                exit;
+            }
         } else {
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['role'] = $user['role'];
-            $_SESSION['full_name'] = $user['full_name'];
-            header('Location: dashboard.php');
-            exit;
+            $errors[] = 'Invalid email or password.';
         }
-    } else {
-        $error = 'Invalid credentials';
     }
 }
 ?>
@@ -275,14 +281,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <h2>Investigator Login</h2>
                 <p>Secure Access Portal</p>
             </div>
+            <div class="login-body">
+            <?= render_form_errors($errors ?? []) ?>
 
-            <?php if ($error): ?>
-                <div class="alert alert-danger alert-custom mb-4" role="alert">
-                    <i class="bi bi-exclamation-triangle-fill me-2"></i> <?= htmlspecialchars($error) ?>
-                </div>
-            <?php endif; ?>
-
-            <form method="POST" action="">
+            <form method="POST" action="" class="needs-validation" novalidate>
                 <!-- Role Selector -->
                 <div class="form-group">
                     <label class="form-label" for="login_type">Type of Login</label>
@@ -332,6 +334,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../assets/js/validation.js"></script>
     <script>
         // Password Visibility Toggle
         const togglePassword = document.querySelector('#togglePassword');

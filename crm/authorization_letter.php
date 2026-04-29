@@ -14,10 +14,18 @@ else $root_path = $root_path ? $root_path : '';
 
 
 // Fetch Data
-$stmt = $pdo->prepare("SELECT p.*, c.company_name, u.full_name as officer_name, u.employee_id as officer_code, d.full_name as doctor_name 
+$stmt = $pdo->prepare("SELECT p.*, c.company_name, 
+                      u.full_name as officer_name, u.employee_id as officer_code,
+                      pt.full_name as pt_fo_name, pt.employee_id as pt_fo_code,
+                      hp.full_name as hp_fo_name, hp.employee_id as hp_fo_code,
+                      ot.full_name as ot_fo_name, ot.employee_id as ot_fo_code,
+                      d.full_name as doctor_name 
                       FROM projects p 
                       JOIN clients c ON p.client_id = c.id 
                       LEFT JOIN users u ON p.assigned_to = u.id 
+                      LEFT JOIN users pt ON p.pt_fo_id = pt.id
+                      LEFT JOIN users hp ON p.hp_fo_id = hp.id
+                      LEFT JOIN users ot ON p.other_fo_id = ot.id
                       LEFT JOIN users d ON p.assigned_doctor_id = d.id
                       WHERE p.id = ?");
 $stmt->execute([$project_id]);
@@ -27,9 +35,19 @@ if (!$project) {
     die("Claim not found.");
 }
 
-// Access Control check can be relaxed for admins, but generally applies
-if ($_SESSION['role'] == 'investigator' && $project['assigned_to'] != $_SESSION['user_id']) {
-    die("Access Denied: You are not assigned to this case.");
+// Access Control
+$curr_role = $_SESSION['role'] ?? '';
+$is_ho_staff = in_array($curr_role, ['admin', 'super_admin', 'manager', 'coordinator', 'hr', 'hr_manager', 'doctor', 'team_manager', 'fo_manager']);
+$is_assigned = (
+    $project['assigned_to'] == $_SESSION['user_id'] || 
+    $project['pt_fo_id'] == $_SESSION['user_id'] || 
+    $project['hp_fo_id'] == $_SESSION['user_id'] || 
+    $project['other_fo_id'] == $_SESSION['user_id'] ||
+    $project['assigned_doctor_id'] == $_SESSION['user_id']
+);
+
+if (!$is_ho_staff && !$is_assigned) {
+    die("Access Denied: You are not assigned to this case. The assigned FO can download the authorization letter.");
 }
 
 // Format Data
@@ -42,11 +60,40 @@ $doa = $project['doa'] ? date('d-m-Y', strtotime($project['doa'])) : '-';
 $dod = $project['dod'] ? date('d-m-Y', strtotime($project['dod'])) : '-';
 $uhid = $project['uhid'] ?? '-';
 $diagnosis = $project['diagnosis'] ?? '-';
-$officer_name = $project['officer_name'] ?? 'Authorized Officer';
+// Determine which FO name to show
+$curr_user_id = $_SESSION['user_id'] ?? 0;
+$officer_name = 'Authorized Officer';
+$officer_code = 'N/A';
+
+if ($project['assigned_to'] == $curr_user_id) {
+    $officer_name = $project['officer_name'];
+    $officer_code = $project['officer_code'];
+} elseif ($project['pt_fo_id'] == $curr_user_id) {
+    $officer_name = $project['pt_fo_name'];
+    $officer_code = $project['pt_fo_code'];
+} elseif ($project['hp_fo_id'] == $curr_user_id) {
+    $officer_name = $project['hp_fo_name'];
+    $officer_code = $project['hp_fo_code'];
+} elseif ($project['other_fo_id'] == $curr_user_id) {
+    $officer_name = $project['ot_fo_name'];
+    $officer_code = $project['ot_fo_code'];
+} else {
+    // If HO staff downloads, use primary FO if exists, else first available
+    $officer_name = $project['officer_name'] ?: ($project['pt_fo_name'] ?: ($project['hp_fo_name'] ?: ($project['ot_fo_name'] ?: 'Authorized Officer')));
+    $officer_code = $project['officer_code'] ?: ($project['pt_fo_code'] ?: ($project['hp_fo_code'] ?: ($project['ot_fo_code'] ?: 'N/A')));
+}
 
 // Paths
 $logo_path = "../assets/images/documantraa_logo.png";
 $seal_path = "../assets/images/auth_seal.png";
+
+// Handle Word Export
+if (isset($_GET['export']) && $_GET['export'] === 'doc') {
+    header("Content-Type: application/vnd.ms-word");
+    header("Content-Disposition: attachment; filename=\"Auth_Letter_{$claim_no}.doc\"");
+    header("Pragma: no-cache");
+    header("Expires: 0");
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -138,6 +185,7 @@ $seal_path = "../assets/images/auth_seal.png";
 </head>
 <body>
 
+<?php if (!isset($_GET['export'])): ?>
     <!-- Mobile Top Bar -->
     <div class="mobile-top-bar d-lg-none">
         <div class="d-flex align-items-center gap-2">
@@ -151,8 +199,10 @@ $seal_path = "../assets/images/auth_seal.png";
 
     <!-- Sidebar -->
     <?php include 'includes/sidebar.php'; ?>
+<?php endif; ?>
 
-    <div class="main-content-wrapper">
+    <div class="main-content-wrapper" style="<?= isset($_GET['export']) ? 'margin-left: 0; padding: 0;' : '' ?>">
+<?php if (!isset($_GET['export'])): ?>
         <!-- App Header (Desktop) -->
         <header class="app-header-section d-none d-lg-block">
             <div class="header-inner">
@@ -165,18 +215,23 @@ $seal_path = "../assets/images/auth_seal.png";
                 </div>
             </div>
         </header>
+<?php endif; ?>
 
         <div class="app-container">
-            
+<?php if (!isset($_GET['export'])): ?>
             <!-- Controls Bar -->
             <div class="ui-controls-bar d-flex justify-content-end gap-2 mb-4 no-print">
                 <button onclick="window.print()" class="btn-v2 btn-white-v2">
                     <i class="bi bi-printer"></i> Print
                 </button>
+                <a href="authorization_letter.php?id=<?= $project_id ?>&export=doc" class="btn-v2 btn-white-v2">
+                    <i class="bi bi-file-earmark-word"></i> Word
+                </a>
                 <button onclick="downloadPDF()" class="btn-v2 btn-primary-v2">
                     <i class="bi bi-download"></i> Download PDF
                 </button>
             </div>
+<?php endif; ?>
 
             <!-- Letter Sheet Wrapper -->
             <div class="d-flex justify-content-center bg-secondary-subtle py-5 rounded-3">
@@ -216,9 +271,9 @@ $seal_path = "../assets/images/auth_seal.png";
                         <table class="info-table">
                             <tr><td class="info-label">Claim Number</td><td>: <strong><?= htmlspecialchars($claim_no) ?></strong></td></tr>
                             <tr><td class="info-label">Patient Name</td><td>: <?= htmlspecialchars($patient_name) ?></td></tr>
-                            <tr><td class="info-label">Policy Holder</td><td>: <?= htmlspecialchars($insurance_co) ?> (Client)</td></tr>
                             <tr><td class="info-label">DOA</td><td>: <?= $doa ?></td></tr>
                             <tr><td class="info-label">UHID / IP No</td><td>: <?= htmlspecialchars($uhid) ?></td></tr>
+                            <tr><td class="info-label">Assigned Officer</td><td>: <strong><?= htmlspecialchars(strtoupper($officer_name)) ?></strong> (ID: <?= htmlspecialchars($officer_code) ?>)</td></tr>
                         </table>
 
                         <!-- Body -->
@@ -229,7 +284,7 @@ $seal_path = "../assets/images/auth_seal.png";
                         </p>
 
                         <p class="text-justify">
-                            We have assigned our Field Officer, <strong>Mr./Ms. <?= htmlspecialchars($officer_name) ?></strong> (ID: <?= htmlspecialchars($project['officer_code'] ?? 'N/A') ?>), to visit your hospital for the verification of documents and to collect necessary medical records required for claim processing.
+                            We have assigned our Field Officer, <strong>Mr./Ms. <?= htmlspecialchars(strtoupper($officer_name)) ?></strong> (ID: <?= htmlspecialchars($officer_code) ?>), to visit your hospital for the verification of documents and to collect necessary medical records required for claim processing.
                         </p>
 
                         <p>We kindly request you to provide the following documents/information:</p>

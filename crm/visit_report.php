@@ -22,12 +22,24 @@ if (!$project) {
     exit;
 }
 
-// Fetch Visit Specific Photos
-$visit_categories = ['Hospital Visit Photo', 'Hospital Selfie', 'Lab Visit Photo', 'Pharmacy Visit Photo', 'Patient Selfie'];
-$cat_placeholders = implode(',', array_fill(0, count($visit_categories), '?'));
+// Fetch Visit Specific Photos (Search in both category and document_type)
+$visit_keywords = ['Hospital Visit Photo', 'Hospital Selfie', 'Lab Visit Photo', 'Pharmacy Visit Photo', 'Patient Selfie', 'Visit Photo', 'Selfie'];
+$conditions = [];
+$params = [$pid];
 
-$docStmt = $pdo->prepare("SELECT * FROM project_documents WHERE project_id = ? AND category IN ($cat_placeholders) ORDER BY uploaded_at ASC");
-$params = array_merge([$pid], $visit_categories);
+foreach ($visit_keywords as $kw) {
+    $conditions[] = "category LIKE ?";
+    $conditions[] = "document_type LIKE ?";
+    $params[] = "%$kw%";
+    $params[] = "%$kw%";
+}
+
+// Also include anything under 'Investigation' category as it typically contains visit proof
+$conditions[] = "category = ?";
+$params[] = 'Investigation';
+
+$query = "SELECT * FROM project_documents WHERE project_id = ? AND (" . implode(' OR ', $conditions) . ") ORDER BY uploaded_at ASC";
+$docStmt = $pdo->prepare($query);
 $docStmt->execute($params);
 $documents = $docStmt->fetchAll();
 

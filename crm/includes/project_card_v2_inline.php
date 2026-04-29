@@ -10,14 +10,26 @@ if (!function_exists('render_scope_badge')) {
     }
 }
 
-if ($scope == 'Hospital Part') {
-    $scope_badges = render_scope_badge('H', 'bg-danger');
-} elseif ($scope == 'Patient Part') {
-    $scope_badges = render_scope_badge('P', 'bg-danger');
-} elseif ($scope == 'Other Part') {
-    $scope_badges = render_scope_badge('O', 'bg-secondary');
-} else {
-    $scope_badges = render_scope_badge('H', 'bg-danger') . render_scope_badge('P', 'bg-danger');
+$scope_badges = '';
+if (!empty($project['hp_fo_id'])) {
+    $scope_badges .= render_scope_badge('H', 'bg-danger');
+}
+if (!empty($project['pt_fo_id'])) {
+    $scope_badges .= render_scope_badge('P', 'bg-danger');
+}
+if (!empty($project['other_fo_id'])) {
+    $scope_badges .= render_scope_badge('O', 'bg-secondary');
+}
+if (empty($scope_badges)) {
+    if ($scope == 'Hospital Part') {
+        $scope_badges = render_scope_badge('H', 'bg-danger');
+    } elseif ($scope == 'Patient Part') {
+        $scope_badges = render_scope_badge('P', 'bg-danger');
+    } elseif ($scope == 'Other Part') {
+        $scope_badges = render_scope_badge('O', 'bg-secondary');
+    } else {
+        $scope_badges = render_scope_badge('H', 'bg-danger') . render_scope_badge('P', 'bg-danger');
+    }
 }
 
 // TAT Logic
@@ -68,7 +80,8 @@ $is_assigned_fo = (
     ($project['assigned_to'] ?? 0) == $user_id || 
     ($project['pt_fo_id'] ?? 0) == $user_id || 
     ($project['hp_fo_id'] ?? 0) == $user_id || 
-    ($project['other_fo_id'] ?? 0) == $user_id
+    ($project['other_fo_id'] ?? 0) == $user_id ||
+    ($project['assigned_doctor_id'] ?? 0) == $user_id
 );
 $show_fees = $is_power_user || $is_assigned_tm || $is_assigned_fo;
 
@@ -86,8 +99,16 @@ $fine_status = ($project['is_fine_confirmed'] ?? 0) ? 'Confirmed' : 'Calculated'
                 <a href="project_details.php?id=<?= $project['id'] ?>" class="text-decoration-none">
                     <h6 class="fw-bold mb-1 text-truncate text-main" style="font-size: 1rem;"><?= htmlspecialchars($project['title']) ?></h6>
                 </a>
-                <div class="d-flex align-items-center">
-                    <small class="text-muted fw-bold me-2 font-monospace"><?= htmlspecialchars($project['claim_number'] ?? 'N/A') ?></small>
+                <div class="d-flex align-items-center flex-wrap gap-1">
+                    <?php if(!empty($project['manual_claim_number'])): ?>
+                    <small class="text-dark fw-bold me-1 font-monospace" style="font-size:0.8rem;"><?= htmlspecialchars($project['manual_claim_number']) ?></small>
+                    <?php endif; ?>
+                    <small class="text-muted fw-semibold font-monospace" style="font-size:0.7rem;" title="AFICS ID"><?= htmlspecialchars($project['claim_number'] ?? 'N/A') ?></small>
+                    <?php if(($project['doc_count'] ?? 0) > 0): ?>
+                    <span class="badge bg-light text-primary border me-2" title="<?= $project['doc_count'] ?> documents attached" style="padding: 2px 6px; font-size: 0.7rem; border-radius: 4px;">
+                        <i class="bi bi-paperclip"></i> <?= $project['doc_count'] ?>
+                    </span>
+                    <?php endif; ?>
                     <div><?= $scope_badges ?></div>
                 </div>
             </div>
@@ -101,8 +122,14 @@ $fine_status = ($project['is_fine_confirmed'] ?? 0) ? 'Confirmed' : 'Calculated'
                     </button>
                     <ul class="dropdown-menu dropdown-menu-end shadow-sm border-0">
                         <li><a class="dropdown-item" href="project_details.php?id=<?= $project['id'] ?>"><i class="bi bi-eye me-2"></i> View Details</a></li>
+                        <li><a class="dropdown-item" href="project_documents.php?id=<?= $project['id'] ?>"><i class="bi bi-cloud-upload me-2"></i> Manage Documents</a></li>
+                        <li><hr class="dropdown-divider"></li>
                         <li><a class="dropdown-item" href="authorization_letter.php?id=<?= $project['id'] ?>" target="_blank"><i class="bi bi-file-earmark-text me-2"></i> Auth Letter</a></li>
-                        <li><a class="dropdown-item" href="normalization_letter.php?id=<?= $project['id'] ?>" target="_blank"><i class="bi bi-shield-check me-2"></i> Normalization Letter</a></li>
+
+                        <?php if (in_array($user_role, ['admin', 'super_admin', 'manager', 'hod', 'doctor', 'team_manager'])): ?>
+                            <li><a class="dropdown-item" href="investigation_report.php?id=<?= $project['id'] ?>" target="_blank"><i class="bi bi-file-earmark-pdf-fill me-2"></i> Investigation Report</a></li>
+                            <li><a class="dropdown-item" href="investigation_data.php?id=<?= $project['id'] ?>"><i class="bi bi-clipboard-data me-2"></i> Edit Report Data</a></li>
+                        <?php endif; ?>
                         <?php if($is_power_user): ?>
                             <?php if(!$project['is_hard_copy_received'] && !$project['is_hard_copy_overridden']): ?>
                                 <li>
@@ -122,7 +149,12 @@ $fine_status = ($project['is_fine_confirmed'] ?? 0) ? 'Confirmed' : 'Calculated'
                             <?php endif; ?>
                             <?php if($project['payment_status'] == 'Unpaid' && ($project['is_hard_copy_received'] || $project['is_hard_copy_overridden'])): ?>
                                 <li>
-                                    <button type="button" class="dropdown-item text-success" data-bs-toggle="modal" data-bs-target="#releasePaymentModal" data-id="<?= $project['id'] ?>">
+                                    <button type="button" class="dropdown-item text-success" data-bs-toggle="modal" data-bs-target="#releasePaymentModal" 
+                                            data-id="<?= $project['id'] ?>"
+                                            data-ta="<?= $project['ta_amount'] ?? '0' ?>"
+                                            data-tat="<?= $project['tat_deduction'] ?? '0' ?>"
+                                            data-other="<?= $project['other_deduction'] ?? '0' ?>"
+                                            data-fine="<?= $display_fine ?>">
                                         <i class="bi bi-cash-stack me-2"></i> Release Payment
                                     </button>
                                 </li>
@@ -133,6 +165,7 @@ $fine_status = ($project['is_fine_confirmed'] ?? 0) ? 'Confirmed' : 'Calculated'
                                data-id="<?= $project['id'] ?>" 
                                data-title="<?= htmlspecialchars($project['title']) ?>" 
                                data-claim="<?= htmlspecialchars($project['claim_number']) ?>" 
+                               data-manual-claim="<?= htmlspecialchars($project['manual_claim_number'] ?? '') ?>" 
                                data-scope="<?= htmlspecialchars($project['scope']) ?>" 
                                data-dead="<?= $project['tat_deadline'] ?>" 
                                data-hospital="<?= htmlspecialchars($project['hospital_name'] ?? '') ?>" 
@@ -143,9 +176,19 @@ $fine_status = ($project['is_fine_confirmed'] ?? 0) ? 'Confirmed' : 'Calculated'
                                data-ptfo="<?= $project['pt_fo_id'] ?? '' ?>" 
                                data-hpfo="<?= $project['hp_fo_id'] ?? '' ?>" 
                                data-otherfo="<?= $project['other_fo_id'] ?? '' ?>" 
+                               data-doctor="<?= $project['assigned_doctor_id'] ?? '' ?>" 
                                data-points="<?= $project['case_points'] ?? '0' ?>" 
+                               data-tm-points="<?= $project['tm_points'] ?? '0' ?>" 
+                               data-dr-points="<?= $project['dr_points'] ?? '0' ?>" 
+                               data-mngr-points="<?= $project['mngr_points'] ?? '0' ?>" 
+                               data-pt-fo-points="<?= $project['pt_fo_points'] ?? '0' ?>" 
+                               data-hp-fo-points="<?= $project['hp_fo_points'] ?? '0' ?>" 
+                               data-other-fo-points="<?= $project['other_fo_points'] ?? '0' ?>" 
                                data-phone="<?= htmlspecialchars($project['patient_phone'] ?? '') ?>" 
-                               data-desc="<?= htmlspecialchars($project['description']) ?>"><i class="bi bi-pencil me-2"></i> Edit</a></li>
+                               data-conclusion="<?= htmlspecialchars($project['closure_conclusion'] ?? '') ?>" 
+                               data-ctype="<?= htmlspecialchars($project['claim_type'] ?? 'REIMBURSEMENT') ?>" 
+                               data-desc="<?= htmlspecialchars($project['description'] ?? '') ?>"
+                               data-complaints="<?= htmlspecialchars($project['main_complaints'] ?? '') ?>"><i class="bi bi-pencil me-2"></i> Edit</a></li>
                         <?php endif; ?>
                     </ul>
                 </div>
@@ -165,7 +208,7 @@ $fine_status = ($project['is_fine_confirmed'] ?? 0) ? 'Confirmed' : 'Calculated'
                     <span class="badge bg-primary-subtle text-primary border border-primary px-2" style="font-size: 0.7rem;"><?= (float)$project['case_points'] ?> pts</span>
                     <div class="small <?= $flag_class ?>">
                         <i class="bi bi-flag-fill me-1"></i>
-                        <span><?= date('d M', strtotime($project['tat_deadline'])) ?></span>
+                        <span><?= !empty($project['tat_deadline']) ? date('d M', strtotime($project['tat_deadline'])) : 'N/A' ?></span>
                     </div>
                 </div>
             </div>
@@ -186,10 +229,6 @@ $fine_status = ($project['is_fine_confirmed'] ?? 0) ? 'Confirmed' : 'Calculated'
             </div>
 
             <div class="row g-2 mt-auto">
-                <div class="col-6">
-                    <small class="text-uppercase text-muted" style="font-size: 0.65rem; font-weight: 600;">Main FO</small>
-                    <div class="text-truncate small text-main fw-medium"><?= htmlspecialchars($project['officer_name'] ?? '-') ?></div>
-                </div>
                 <div class="col-6">
                     <div class="d-flex flex-column">
                         <small class="text-uppercase text-muted" style="font-size: 0.65rem; font-weight: 600;">Client</small>
@@ -259,7 +298,15 @@ $fine_status = ($project['is_fine_confirmed'] ?? 0) ? 'Confirmed' : 'Calculated'
                             <?php endif; ?>
                             
                             <?php if($show_fees): ?>
-                                <span class="ms-auto fw-bold text-main" style="font-size: 0.75rem;">Earnings: ₹<?= number_format(($project['price_hospital']+$project['price_patient']+$project['price_other'] - $display_fine), 2) ?></span>
+                                <?php 
+                                $gross = ($project['price_hospital'] + $project['price_patient'] + $project['price_other']);
+                                if ($project['payment_status'] == 'Paid') {
+                                    $net_paid = ($gross + ($project['ta_amount'] ?? 0)) - (($project['fine_amount'] ?? 0) + ($project['tat_deduction'] ?? 0) + ($project['other_deduction'] ?? 0));
+                                    echo '<span class="ms-auto fw-bold text-success" style="font-size: 0.75rem;">Paid: ₹' . number_format($net_paid, 2) . '</span>';
+                                } else {
+                                    echo '<span class="ms-auto fw-bold text-main" style="font-size: 0.75rem;">Earnings: ₹' . number_format(($gross - $display_fine), 2) . '</span>';
+                                }
+                                ?>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -286,6 +333,9 @@ $fine_status = ($project['is_fine_confirmed'] ?? 0) ? 'Confirmed' : 'Calculated'
                         <option value="<?= $curr ?>" selected><?= $curr == 'FO-Closed' ? 'FO Closer' : $curr ?></option>
                         <?php if ($curr != 'FO-Closed'): ?>
                             <option value="FO-Closed">FO Closer (Finish visit)</option>
+                        <?php endif; ?>
+                        <?php if (in_array($role, ['doctor', 'incharge'])): ?>
+                            <option value="Completed">Final Close (Completed)</option>
                         <?php endif; ?>
                     <?php else: ?>
                         <option value="Pending" <?= $curr=='Pending'?'selected':'' ?>>Pending</option>

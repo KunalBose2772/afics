@@ -14,6 +14,7 @@ require_permission('attendance');
 
 // Handle Check-in/Check-out
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $errors = [];
     try {
         $user_id = $_SESSION['user_id'];
         $today = date('Y-m-d');
@@ -21,8 +22,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ip = $_SERVER['REMOTE_ADDR'];
 
         if (isset($_POST['check_in'])) {
-            $lat = !empty($_POST['latitude']) ? $_POST['latitude'] : null;
-            $long = !empty($_POST['longitude']) ? $_POST['longitude'] : null;
+            $lat = !empty($_POST['latitude']) ? floatval($_POST['latitude']) : null;
+            $long = !empty($_POST['longitude']) ? floatval($_POST['longitude']) : null;
 
             // Geofencing Check
             $u_stmt = $pdo->prepare("SELECT role FROM users WHERE id = ?");
@@ -52,7 +53,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
             }
-
             // Check if already checked in to prevent duplicate
             $check_stmt = $pdo->prepare("SELECT COUNT(*) FROM attendance WHERE user_id = ? AND date = ?");
             $check_stmt->execute([$user_id, $today]);
@@ -67,9 +67,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: attendance.php');
         exit;
     } catch (Exception $e) {
-        error_log("Attendance Error: " . $e->getMessage());
-        header('Location: attendance.php?error=' . urlencode($e->getMessage()));
-        exit;
+        $errors[] = $e->getMessage();
     }
 }
 
@@ -414,6 +412,7 @@ function isLate($check_in_time, $shift_start, $grace_minutes)
         </header>
 
         <div class="app-container">
+            <?= render_form_errors($errors ?? []) ?>
             <!-- Statistics Cards -->
             <div class="row g-3 mb-4">
                 <div class="col-6 col-md-3">
@@ -611,6 +610,7 @@ function isLate($check_in_time, $shift_start, $grace_minutes)
     </nav>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../assets/js/validation.js"></script>
     <script>
         function attemptCheckIn() {
             const checkInBtn = document.querySelector('#checkInForm button');

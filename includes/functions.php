@@ -214,12 +214,21 @@ function render_dynamic_css($settings)
 
 // Queue email for background processing
 // Queue email and Attempt Immediate Send via PHPMailer
-function queue_email($pdo, $to, $subject, $body, $from_user_id = null, $attachments = [])
+function queue_email($pdo, $to, $subject, $body, $from_user_id = null, $attachments = [], $immediate = true)
 {
     // Fetch Settings
-    global $pdo; // ensure pdo access if not passed properly in some contexts
+    global $pdo; 
+    
+    // Check if connection is still alive, if not reconnect
+    try {
+        if ($pdo) {
+            $pdo->query("SELECT 1");
+        }
+    } catch (PDOException $e) {
+        require dirname(__DIR__) . '/config/db.php';
+    }
+
     if (!isset($pdo)) {
-         // Should not happen if passed correctly, but fallback safety
          return false; 
     }
 
@@ -234,20 +243,23 @@ function queue_email($pdo, $to, $subject, $body, $from_user_id = null, $attachme
         return false;
     }
 
+    // Skip actual sending if not immediate
+    if (!$immediate) return true;
+
     // Fetch SMTP Settings
     try {
         $s_stmt = $pdo->query("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'smtp_%'");
         $settings = $s_stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         
         $host = $settings['smtp_host'] ?? 'smtp.hostinger.com';
-        $user = $settings['smtp_username'] ?? ($settings['smtp_user'] ?? '');
-        $pass = $settings['smtp_password'] ?? ($settings['smtp_pass'] ?? '');
+        $user = $settings['smtp_username'] ?? ($settings['smtp_user'] ?? 'info@documantraa.in');
+        $pass = $settings['smtp_password'] ?? ($settings['smtp_pass'] ?? 'l]l$+954F');
         $port = intval($settings['smtp_port'] ?? 465); 
     } catch (Exception $e) {
         return true; // Queued but settings failed?
     }
 
-    // Send via PHPMailer
+    // Send via PHPMailer using PHP mail() - SMTP port 465 is blocked on this host
     require_once __DIR__ . '/../lib/phpmailer/src/Exception.php';
     require_once __DIR__ . '/../lib/phpmailer/src/PHPMailer.php';
     require_once __DIR__ . '/../lib/phpmailer/src/SMTP.php';
@@ -255,42 +267,40 @@ function queue_email($pdo, $to, $subject, $body, $from_user_id = null, $attachme
     $mail = new PHPMailer\PHPMailer\PHPMailer(true);
 
     try {
-        // Server settings
-        $mail->isSMTP();
-        $mail->Host       = $host;
-        $mail->SMTPAuth   = true;
-        $mail->Username   = $user;
-        $mail->Password   = $pass;
-        // Auto-detect encryption based on port
-        if ($port == 465) {
-            $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS;
-        } else {
-            $mail->SMTPSecure = PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS;
-        }
-        $mail->Port       = $port;
+        // Use PHP's built-in mail() instead of SMTP (SMTP port 465 is blocked by host firewall)
+        $mail->isMail();
 
-        // Recipients
-        $mail->setFrom($user, 'Documantraa OIMS');
+        // Sender
+        $from_address = 'noreply@documantraa.in';
+        $mail->setFrom($from_address, 'AFICS DOCUMANTRAA');
+        $mail->addReplyTo($from_address, 'AFICS DOCUMANTRAA');
         $mail->addAddress($to);
 
         // Content
+        $is_html_body = (strpos($body, '<div') !== false || strpos($body, '<table') !== false || strpos($body, '<html') !== false);
         $mail->isHTML(true);
         $mail->Subject = $subject;
-        $mail->Body    = nl2br($body);
+        $mail->Body    = $is_html_body ? $body : nl2br($body);
         $mail->AltBody = strip_tags($body);
 
         $mail->send();
         
-        // Update Queue Status
-        $upd = $pdo->prepare("UPDATE email_queue SET status = 'sent', sent_at = NOW() WHERE id = ?");
+        // Reconnect if lost during send process
+        try { @$pdo->query("SELECT 1"); } catch (Exception $ex) { require dirname(__DIR__) . '/config/db.php'; }
+
+        // Update Queue Status to sent
+        $upd = $pdo->prepare("UPDATE email_queue SET status = 'sent', updated_at = NOW() WHERE id = ?");
         $upd->execute([$queue_id]);
         
         return true;
 
     } catch (Exception $e) {
-        // Update Queue to failed
-        $upd = $pdo->prepare("UPDATE email_queue SET status = 'failed', error_message = ? WHERE id = ?");
-        $upd->execute([substr($mail->ErrorInfo, 0, 255), $queue_id]);
+        // Reconnect before updating status
+        try { @$pdo->query("SELECT 1"); } catch (Exception $ex) { require dirname(__DIR__) . '/config/db.php'; }
+        
+        $full_error = $e->getMessage() . " | PHPMailer: " . $mail->ErrorInfo;
+        $upd = $pdo->prepare("UPDATE email_queue SET status = 'failed', error_message = ?, updated_at = NOW() WHERE id = ?");
+        $upd->execute([substr($full_error, 0, 255), $queue_id]);
         return false;
     }
 }
@@ -366,10 +376,20 @@ function send_whatsapp_notification($to_mobile, $message) {
 
     if (empty($apikey)) return false;
 
-    // CallMeBot Free API
+    // Prepare message and URL
     $encoded_msg = urlencode("To: $to_mobile\nMsg: $message");
     $url = "https://api.callmebot.com/whatsapp.php?phone=$whatsapp_phone&text=$encoded_msg&apikey=$apikey";
-    @file_get_contents($url);
+
+    // Use cURL with a strict timeout to prevent system hangs
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 1); // 1 second connection timeout
+    curl_setopt($ch, CURLOPT_TIMEOUT, 2);        // 2 second total execution timeout
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false); 
+    curl_exec($ch);
+    curl_close($ch);
+    
     return true;
 }
 
@@ -394,5 +414,56 @@ function calculate_project_fine($project) {
     
     $fine_amount = ($total_price * $fine_percent) / 100;
     return $fine_amount;
+}
+
+/**
+ * FORM VALIDATION HELPERS
+ */
+
+// Sanitize input to prevent XSS
+function sanitize_input($data) {
+    if (is_array($data)) {
+        return array_map('sanitize_input', $data);
+    }
+    $data = trim($data);
+    $data = stripslashes($data);
+    return htmlspecialchars($data, ENT_QUOTES, 'UTF-8');
+}
+
+// Validate required fields
+function validate_required($fields, $source) {
+    $errors = [];
+    foreach ($fields as $field => $label) {
+        if (!isset($source[$field]) || trim($source[$field]) === '') {
+            $errors[] = "$label is required.";
+        }
+    }
+    return $errors;
+}
+
+// Validate Email
+function validate_email($email) {
+    return filter_var($email, FILTER_VALIDATE_EMAIL);
+}
+
+// Validate Numeric/Amount
+function validate_numeric($value, $label, $min = 0) {
+    if (!is_numeric($value) || $value < $min) {
+        return "$label must be a number greater than or equal to $min.";
+    }
+    return null;
+}
+
+// Global form error renderer
+function render_form_errors($errors) {
+    if (empty($errors)) return '';
+    $output = '<div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm mb-4">';
+    $output .= '<i class="bi bi-exclamation-triangle-fill me-2"></i><strong>Validation Error:</strong>';
+    $output .= '<ul class="mb-0 mt-2">';
+    foreach ($errors as $error) {
+        $output .= '<li>' . htmlspecialchars($error) . '</li>';
+    }
+    $output .= '</ul><button type="button" class="btn-close" data-bs-dismiss="alert"></button></div>';
+    return $output;
 }
 ?>

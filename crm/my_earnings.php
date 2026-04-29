@@ -8,8 +8,12 @@ $user_id = $_SESSION['user_id'];
 // Only Team Managers, Managers, and Admins can see substantial earnings
 // Sub-FOs (investigator/fo) see 0 or limited?
 // User said: "IN TEAM MANAGER UNDER FOS THEY CAN ALLOCATE THERE UNDER TEAM MEMBERS. ... TEAM MANAGER ONLY [RECV PAY].. THERE SUB FOS NO NEED TO SEE PAYMENT DETAILS."
-$is_ho_staff = in_array($user_role, ['admin', 'super_admin', 'manager', 'coordinator', 'hr', 'hr_manager', 'doctor']);
+$is_ho_staff = in_array($user_role, ['admin', 'super_admin', 'manager', 'coordinator', 'hr', 'hr_manager']);
 $is_tm = ($user_role == 'team_manager' || $user_role == 'fo_manager');
+
+$total_earned = 0;
+$pending_payment = 0;
+$show_financials = true; 
 
 // Base query for completed/closed cases
 $query = "SELECT p.*, c.company_name FROM projects p JOIN clients c ON p.client_id = c.id WHERE p.status IN ('FO-Closed', 'Completed')";
@@ -29,11 +33,11 @@ $projects = $stmt->fetchAll();
 
 // Note: User previously requested to hide payment for sub-FOs, but now wants to see "How much earn" on mobile.
 // Since the query already filters by assignment, showing these details to the FO for their own cases is helpful.
-$show_financials = true; 
-
+// Calculate totals
 foreach ($projects as $p) {
     if ($show_financials) {
-        $net = ($p['price_hospital'] + $p['price_patient'] + $p['price_other']) - $p['fine_amount'];
+        $net = ($p['price_hospital'] + $p['price_patient'] + $p['price_other'] + ($p['ta_amount'] ?? 0)) 
+               - ($p['fine_amount'] + ($p['tat_deduction'] ?? 0) + ($p['other_deduction'] ?? 0));
         if ($p['payment_status'] == 'Paid') {
             $total_earned += $net;
         } else {
@@ -127,8 +131,11 @@ foreach ($projects as $p) {
                                 <tr><td colspan="7" class="text-center p-5 text-muted">No completed cases found for your account.</td></tr>
                             <?php else: ?>
                                 <?php foreach($projects as $p): 
-                                    $gross = $p['price_hospital'] + $p['price_patient'] + $p['price_other'];
-                                    $net = $gross - $p['fine_amount'];
+                                    $base_gross = $p['price_hospital'] + $p['price_patient'] + $p['price_other'];
+                                    $additions = $p['ta_amount'] ?? 0;
+                                    $gross = $base_gross + $additions;
+                                    $deductions = ($p['fine_amount'] ?? 0) + ($p['tat_deduction'] ?? 0) + ($p['other_deduction'] ?? 0);
+                                    $net = $gross - $deductions;
                                 ?>
                                 <tr>
                                     <td class="fw-bold"><?= htmlspecialchars($p['claim_number']) ?></td>
@@ -138,7 +145,7 @@ foreach ($projects as $p) {
                                     </td>
                                     <?php if($show_financials): ?>
                                     <td class="text-end">₹<?= number_format($gross, 2) ?></td>
-                                    <td class="text-end text-danger"><?= $p['fine_amount'] > 0 ? '-₹'.number_format($p['fine_amount'], 2) : '₹0' ?></td>
+                                    <td class="text-end text-danger"><?= $deductions > 0 ? '-₹'.number_format($deductions, 2) : '₹0' ?></td>
                                     <td class="text-end fw-bold">₹<?= number_format($net, 2) ?></td>
                                     <?php endif; ?>
                                     <td class="text-center">
@@ -174,8 +181,11 @@ foreach ($projects as $p) {
                         <div class="text-center p-5 text-muted">No completed cases found.</div>
                     <?php else: ?>
                         <?php foreach($projects as $p): 
-                            $gross = $p['price_hospital'] + $p['price_patient'] + $p['price_other'];
-                            $net = $gross - $p['fine_amount'];
+                            $base_gross = $p['price_hospital'] + $p['price_patient'] + $p['price_other'];
+                            $additions = $p['ta_amount'] ?? 0;
+                            $gross = $base_gross + $additions;
+                            $deductions = ($p['fine_amount'] ?? 0) + ($p['tat_deduction'] ?? 0) + ($p['other_deduction'] ?? 0);
+                            $net = $gross - $deductions;
                         ?>
                         <div class="earnings-mobile-card border border-light position-relative p-3 mb-3 bg-white" style="border-radius: 1.2rem; box-shadow: 0 4px 15px rgba(0,0,0,0.05);">
                             <div class="d-flex justify-content-between align-items-start mb-3">
@@ -202,9 +212,9 @@ foreach ($projects as $p) {
                                     <div class="fw-bold" style="font-size: 0.9rem;">₹<?= number_format($gross, 0) ?></div>
                                 </div>
                                 <div class="col-4 border-end text-center">
-                                    <small class="text-muted d-block fw-bold mb-1" style="font-size: 0.6rem; text-transform: uppercase;">Fines</small>
-                                    <div class="fw-bold <?= $p['fine_amount'] > 0 ? 'text-danger' : 'text-muted opacity-50' ?>" style="font-size: 0.9rem;">
-                                        <?= $p['fine_amount'] > 0 ? '-₹'.number_format($p['fine_amount'], 0) : '₹0' ?>
+                                    <small class="text-muted d-block fw-bold mb-1" style="font-size: 0.6rem; text-transform: uppercase;">Deductions</small>
+                                    <div class="fw-bold <?= $deductions > 0 ? 'text-danger' : 'text-muted opacity-50' ?>" style="font-size: 0.9rem;">
+                                        <?= $deductions > 0 ? '-₹'.number_format($deductions, 0) : '₹0' ?>
                                     </div>
                                 </div>
                                 <div class="col-4 text-end">

@@ -8,12 +8,13 @@ $full_name = $_SESSION['full_name'];
 $role = $_SESSION['role'];
 
 // --- HANDLERS ---
-$allowed_roles = ['super_admin', 'admin', 'hr', 'hr_manager'];
-$can_edit_profile = in_array($role, $allowed_roles);
+$admin_profile_roles = ['super_admin', 'admin', 'hr', 'hr_manager'];
+$can_manage_profile_settings = in_array($role, $admin_profile_roles);
+$can_upload_profile_picture = in_array($role, ['admin', 'hr']);
 
 // 1. Profile Picture
 if (isset($_POST['update_profile_picture']) && !empty($_POST['cropped_image'])) {
-    if (!$can_edit_profile) { header('Location: my_profile.php?error=Access Denied'); exit; }
+    if (!$can_upload_profile_picture) { header('Location: my_profile.php?error=Access Denied'); exit; }
     $cropped_image = $_POST['cropped_image'];
     $image_parts = explode(";base64,", $cropped_image);
     $image_base64 = base64_decode($image_parts[1]);
@@ -46,7 +47,6 @@ if (isset($_POST['update_bank_details'])) {
 
 // 4. Password Change
 if (isset($_POST['change_password'])) {
-    if (!$can_edit_profile) { header('Location: my_profile.php?error=Access Denied'); exit; }
     $current = $_POST['current_password'];
     $new = $_POST['new_password'];
     $confirm = $_POST['confirm_password'];
@@ -72,8 +72,11 @@ if (isset($_POST['apply_leave'])) {
     $end_date = $_POST['end_date'];
     $reason = $_POST['reason'];
     
-    $stmt = $pdo->prepare("INSERT INTO leaves (user_id, leave_type, start_date, end_date, reason, status, applied_at) VALUES (?, ?, ?, ?, ?, 'Pending', NOW())");
-    $stmt->execute([$user_id, $leave_type, $start_date, $end_date, $reason]);
+    // Calculate days
+    $days = (strtotime($end_date) - strtotime($start_date)) / (60 * 60 * 24) + 1;
+    
+    $stmt = $pdo->prepare("INSERT INTO leaves (user_id, leave_type, start_date, end_date, days_count, reason, status, applied_at) VALUES (?, ?, ?, ?, ?, ?, 'Pending', NOW())");
+    $stmt->execute([$user_id, $leave_type, $start_date, $end_date, $days, $reason]);
     
     header('Location: my_profile.php?leave_applied=1'); exit;
 }
@@ -86,7 +89,7 @@ if (isset($_POST['update_email_settings'])) {
     // For now keeping consistent with old file logic if requested.
     // Actually old file had: if (!$can_edit_profile) { ... }
     // Let's stick to that for safety unless told otherwise.
-    if (!$can_edit_profile) { header('Location: my_profile.php?error=Access Denied'); exit; }
+    if (!$can_manage_profile_settings) { header('Location: my_profile.php?error=Access Denied'); exit; }
     
     $smtp_user = $_POST['smtp_username'];
     $smtp_pass = $_POST['smtp_password'];
@@ -339,10 +342,12 @@ $att_stats = $pdo->query("SELECT
                                 <button class="nav-link active text-start d-flex align-items-center gap-2" id="v-pills-personal-tab" data-bs-toggle="pill" data-bs-target="#v-pills-personal" type="button" role="tab">
                                     <i class="bi bi-person-badge"></i> Personal Info
                                 </button>
-                                <?php if ($can_edit_profile): ?>
+                                <?php if ($can_upload_profile_picture): ?>
                                 <button class="nav-link text-start d-flex align-items-center gap-2" id="v-pills-picture-tab" data-bs-toggle="pill" data-bs-target="#v-pills-picture" type="button" role="tab">
                                     <i class="bi bi-camera"></i> Profile Picture
                                 </button>
+                                <?php endif; ?>
+                                <?php if ($can_manage_profile_settings): ?>
                                 <button class="nav-link text-start d-flex align-items-center gap-2" id="v-pills-password-tab" data-bs-toggle="pill" data-bs-target="#v-pills-password" type="button" role="tab">
                                     <i class="bi bi-key"></i> Password
                                 </button>
@@ -393,7 +398,7 @@ $att_stats = $pdo->query("SELECT
                                 </div>
 
                                 <!-- Profile Picture (Cropper) -->
-                                <?php if ($can_edit_profile): ?>
+                                <?php if ($can_upload_profile_picture): ?>
                                 <div class="tab-pane fade" id="v-pills-picture" role="tabpanel">
                                     <h6 class="text-uppercase text-muted fw-bold mb-3 small">Update Profile Picture</h6>
                                     <form method="POST" enctype="multipart/form-data" id="profilePictureForm">
@@ -430,7 +435,10 @@ $att_stats = $pdo->query("SELECT
                                     </form>
                                 </div>
 
+                                <?php endif; ?>
+
                                 <!-- Password -->
+                                <?php if ($can_manage_profile_settings): ?>
                                 <div class="tab-pane fade" id="v-pills-password" role="tabpanel">
                                     <h6 class="text-uppercase text-muted fw-bold mb-3 small">Change Password</h6>
                                     <form method="POST">
@@ -479,8 +487,8 @@ $att_stats = $pdo->query("SELECT
                                                 
                                                 <div style="padding: 15px 25px; text-align: left; font-size: 0.75rem; color: #555;">
                                                     <div style="display: flex; margin-bottom: 6px;">
-                                                        <span style="width: 60px; font-weight: 600; color: #888;">ID NO</span>
-                                                        <span style="font-weight: 600;">: <?= htmlspecialchars($user['id']) ?></span>
+                                                        <span style="width: 60px; font-weight: 600; color: #888;">EMP ID</span>
+                                                        <span style="font-weight: 600;">: <?= htmlspecialchars($user['employee_id'] ?? 'AFI-DMI-' . str_pad($user['id'], 5, '0', STR_PAD_LEFT)) ?></span>
                                                     </div>
                                                     <div style="display: flex; margin-bottom: 6px;">
                                                         <span style="width: 60px; font-weight: 600; color: #888;">Phone</span>
@@ -504,7 +512,7 @@ $att_stats = $pdo->query("SELECT
                                 </div>
 
                                 <!-- Email Settings -->
-                                <?php if ($can_edit_profile): ?>
+                                <?php if ($can_manage_profile_settings): ?>
                                 <div class="tab-pane fade" id="v-pills-email" role="tabpanel">
                                     <h6 class="text-uppercase text-muted fw-bold mb-3 small">SMTP Configuration</h6>
                                     <div class="alert alert-warning py-2 mb-3 small">

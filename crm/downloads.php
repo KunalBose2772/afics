@@ -1,42 +1,48 @@
 <?php
 require_once 'app_init.php';
 
-// Auth Check (Redundant as sidebar handles visibility, but good for direct access prevention)
+// Auth Check
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit();
 }
 
-// Define forms list (Mirrors legacy structure)
+// Define the 5 official forms
 $forms = [
-    'Cashless' => [
+    [
+        'label' => 'Cashless Form',
+        'file' => 'Cashless_Form.pdf',
         'icon' => 'bi-credit-card',
-        'color_class' => 'text-success', // V2 colors
-        'bg_class' => 'bg-success-subtle',
-        'files' => [
-            'Cashless Form' => 'cashless_form.pdf',
-            'Admission Confirmation Form' => 'admission_confirmation.pdf'
-        ]
+        'color' => '#10b981',
+        'desc' => 'Standard cashless authorization request form.'
     ],
-    'Reimbursement' => [
+    [
+        'label' => 'Admission Confirmation',
+        'file' => 'Admission_Confirmation_Form.pdf',
+        'icon' => 'bi-file-earmark-check',
+        'color' => '#3b82f6',
+        'desc' => 'Official admission confirmation for field operations.'
+    ],
+    [
+        'label' => 'Reimbursement Form',
+        'file' => 'Reimbursement_Form.pdf',
         'icon' => 'bi-cash-coin',
-        'color_class' => 'text-primary',
-        'bg_class' => 'bg-primary-subtle',
-        'files' => [
-            'Reimbursement Form' => 'reimbursement_form.pdf',
-            'Doctor Form' => 'doctor_form.pdf',
-            'Low Cost Form' => 'low_cost_form.pdf'
-        ]
+        'color' => '#f59e0b',
+        'desc' => 'Standard claim form for medical reimbursements.'
     ],
-    'Medical Reports' => [
-        'icon' => 'bi-file-medical',
-        'color_class' => 'text-danger',
-        'bg_class' => 'bg-danger-subtle',
-        'files' => [
-            'Pathology Form' => 'pathology_form.pdf',
-            'Pathologist Statement' => 'pathologist_statement.pdf',
-            'Radiologist Statement' => 'radiologist_statement.pdf'
-        ]
+    [
+        'label' => 'FO Checklist',
+        'file' => 'FO_Checklist.pdf',
+        'icon' => 'bi-list-check',
+        'color' => '#8b5cf6',
+        'desc' => 'Field Officer operational checklist and verification.'
+    ],
+    [
+        'label' => 'TDQ Form',
+        'file' => 'TDQ_Form.pdf',
+        'icon' => 'bi-file-earmark-text',
+        'color' => '#ef4444',
+        'desc' => 'Technical Data Questionnaire for medical reports.'
     ]
 ];
 ?>
@@ -52,26 +58,107 @@ $forms = [
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
     <link rel="stylesheet" href="css/app.css">
     <style>
-        .file-item {
+        :root {
+            --primary-gradient: linear-gradient(135deg, #3D0C60 0%, #6B21A8 100%);
+            --glass-bg: rgba(255, 255, 255, 0.8);
+            --card-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.05);
+        }
+
+        .form-card {
+            background: #fff;
+            border-radius: 20px;
+            border: 1px solid #e2e8f0;
+            padding: 24px;
+            height: 100%;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
             display: flex;
-            align-items: center;
+            flex-direction: column;
             justify-content: space-between;
-            padding: 12px 16px;
-            border-bottom: 1px solid var(--border);
-            transition: background-color 0.2s;
         }
-        .file-item:last-child {
-            border-bottom: none;
+
+        .form-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+            border-color: #cbd5e1;
         }
-        .file-item:hover {
-            background-color: var(--surface-hover);
-        }
-        .cat-card-header {
-            padding: 16px;
-            border-bottom: 1px solid var(--border);
+
+        .icon-box {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
             display: flex;
             align-items: center;
-            gap: 12px;
+            justify-content: center;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .download-btn {
+            width: 100%;
+            padding: 12px;
+            border-radius: 12px;
+            font-weight: 700;
+            text-align: center;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            transition: all 0.2s ease;
+            background: #f8fafc;
+            color: #1e293b;
+            border: 1px solid #e2e8f0;
+            margin-top: 20px;
+        }
+
+        .download-btn:hover {
+            background: #3D0C60;
+            color: #fff;
+            border-color: #3D0C60;
+            box-shadow: 0 4px 12px rgba(61, 12, 96, 0.2);
+        }
+
+        .page-header {
+            padding: 40px 0;
+            margin-bottom: 20px;
+        }
+
+        .header-title {
+            font-family: 'Lexend', sans-serif;
+            font-weight: 800;
+            font-size: 2.5rem;
+            color: #1e293b;
+            letter-spacing: -0.03em;
+            margin-bottom: 8px;
+        }
+
+        .header-subtitle {
+            font-size: 1.1rem;
+            color: #64748b;
+            max-width: 600px;
+        }
+
+        .form-label {
+            font-family: 'Lexend', sans-serif;
+            font-weight: 700;
+            font-size: 1.2rem;
+            color: #0f172a;
+            margin-bottom: 8px;
+        }
+
+        .form-desc {
+            font-size: 0.9rem;
+            color: #64748b;
+            line-height: 1.5;
+            margin-bottom: 0;
+        }
+
+        @media (max-width: 768px) {
+            .header-title { font-size: 2rem; }
+            .page-header { padding: 30px 0; }
         }
     </style>
 </head>
@@ -90,79 +177,43 @@ $forms = [
     <?php include 'includes/sidebar.php'; ?>
 
     <div class="main-content-wrapper">
-        <header class="app-header-section">
-            <div class="header-inner">
-                <div>
-                    <h1 style="font-size: 1.75rem; color: var(--text-main);">Downloads & Forms</h1>
-                    <p class="text-muted mb-0 small">Access and download standard operational forms.</p>
-                </div>
-            </div>
-        </header>
-
         <div class="app-container">
+            <header class="page-header">
+                <h1 class="header-title">Standard Operating Forms</h1>
+                <p class="header-subtitle">Download the 5 official AFICS DOCUMANTRAA forms required for field operations and verification.</p>
+            </header>
+
             <div class="row g-4">
-                <?php foreach ($forms as $category => $data): ?>
+                <?php foreach ($forms as $form): ?>
                 <div class="col-lg-4 col-md-6">
-                    <div class="app-card p-0 h-100">
-                        <div class="cat-card-header <?= $data['bg_class'] ?>">
-                            <i class="bi <?= $data['icon'] ?> fs-5 <?= $data['color_class'] ?>"></i>
-                            <h5 class="mb-0 fw-bold fs-6 text-dark"><?= $category ?></h5>
-                        </div>
-                        <div class="d-flex flex-column">
-                            <?php foreach ($data['files'] as $label => $filename): ?>
-                            <div class="file-item">
-                                <div class="d-flex align-items-center gap-3 overflow-hidden">
-                                    <div class="bg-light rounded p-2 text-secondary flex-shrink-0">
-                                        <i class="bi bi-file-earmark-pdf"></i>
-                                    </div>
-                                    <span class="text-truncate text-main fw-medium small"><?= $label ?></span>
-                                </div>
-                                <a href="../assets/forms/<?= $filename ?>" class="btn-v2 btn-white-v2" style="padding: 6px 12px; font-size: 0.8rem;" download>
-                                    Download <i class="bi bi-download ms-1"></i>
-                                </a>
+                    <div class="form-card">
+                        <div>
+                            <div class="icon-box" style="background: <?= $form['color'] ?>15; color: <?= $form['color'] ?>;">
+                                <i class="bi <?= $form['icon'] ?>"></i>
                             </div>
-                            <?php endforeach; ?>
+                            <h5 class="form-label"><?= $form['label'] ?></h5>
+                            <p class="form-desc"><?= $form['desc'] ?></p>
                         </div>
+                        
+                        <a href="../assets/forms/<?= rawurlencode($form['file']) ?>" download class="download-btn">
+                            Download PDF <i class="bi bi-download"></i>
+                        </a>
                     </div>
                 </div>
                 <?php endforeach; ?>
             </div>
 
-            <div class="mt-4 text-center">
-                <div class="d-inline-flex align-items-center gap-2 px-3 py-2 rounded-pill bg-light text-muted small">
-                    <i class="bi bi-info-circle-fill"></i>
-                    <span>If a form download fails, please contact Admin to upload the PDF template.</span>
+            <div class="mt-5 d-flex justify-content-center">
+                <div class="info-banner" style="background: #f1f5f9; color: #64748b; padding: 14px 28px; border-radius: 100px; font-size: 0.9rem; font-weight: 500; display: flex; align-items: center; gap: 12px; border: 1px solid #e2e8f0;">
+                    <i class="bi bi-info-circle-fill opacity-50"></i>
+                    <span>These are official document templates. Please ensure you use the latest version.</span>
                 </div>
             </div>
-
         </div>
     </div>
-
-    <!-- Mobile Bottom Nav -->
-    <nav class="bottom-nav">
-        <a href="dashboard.php" class="bottom-nav-item">
-            <i class="bi bi-grid-1x2"></i>
-            <span>Home</span>
-        </a>
-        <a href="projects.php" class="bottom-nav-item">
-            <i class="bi bi-folder"></i>
-            <span>Claims</span>
-        </a>
-        <div style="position: relative; top: -20px;">
-            <a href="#" class="bottom-nav-icon-main">
-                <i class="bi bi-plus-lg"></i>
-            </a>
-        </div>
-        <a href="downloads.php" class="bottom-nav-item active">
-            <i class="bi bi-cloud-download-fill"></i>
-            <span>Forms</span>
-        </a>
-        <a href="my_profile.php" class="bottom-nav-item">
-            <i class="bi bi-person"></i>
-            <span>Profile</span>
-        </a>
-    </nav>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
+
+

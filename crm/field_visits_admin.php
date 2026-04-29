@@ -1,8 +1,8 @@
 <?php
 require_once 'app_init.php';
 // Include auth if needed separately, app_init typically handles it or we do it here
-if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
+if (!isset($_SESSION['user_id']) || !in_array($_SESSION['role'], ['super_admin', 'admin', 'manager', 'fo_manager', 'hod'])) {
+    header("Location: dashboard.php");
     exit();
 }
 
@@ -16,12 +16,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['review_visit'])) {
         $review_remarks = $_POST['review_remarks'] ?? '';
         
         // Manual Adjustments
-        $manual_points = $_POST['manual_points'] ?? 0;
-        $allowance_food = $_POST['allowance_food'] ?? 0;
-        $allowance_ta = $_POST['allowance_ta'] ?? 0;
-        $incentive = $_POST['incentive'] ?? 0;
-        $charge_printing = $_POST['charge_printing'] ?? 0;
-        $charge_parcel = $_POST['charge_parcel'] ?? 0;
+        $manual_points = (int)($_POST['manual_points'] ?? 0);
+        $allowance_food = (float)($_POST['allowance_food'] ?? 0);
+        $allowance_ta = (float)($_POST['allowance_ta'] ?? 0);
+        $incentive = (float)($_POST['incentive'] ?? 0);
+        $charge_printing = (float)($_POST['charge_printing'] ?? 0);
+        $charge_parcel = (float)($_POST['charge_parcel'] ?? 0);
     
         $status = ($action === 'approve') ? 'Approved' : 'Rejected';
     
@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['review_visit'])) {
     
             if ($v_info) {
                 // Base Logic
-                if ($v_info['staff_type'] == 'Permanent') {
+                if (($v_info['staff_type'] ?? 'Permanent') == 'Permanent') {
                     switch ($v_info['visit_scope']) {
                         case 'Hospital Part': $points_earned = 1; break;
                         case 'Patient Part': $points_earned = 2; break;
@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['review_visit'])) {
         
         $points_earned += $manual_points; 
         $total_allowance = $allowance_food + $allowance_ta + $incentive + $charge_printing + $charge_parcel;
-        $earnings += $total_allowance;
+        $earnings += (float)$total_allowance;
     
         $stmt = $pdo->prepare("UPDATE field_visits SET status = ?, reviewed_by = ?, reviewed_at = NOW(), review_remarks = ?, points_earned = ?, earnings = ? WHERE id = ?");
         $stmt->execute([$status, $_SESSION['user_id'], $review_remarks, $points_earned, $earnings, $visit_id]);
@@ -83,11 +83,12 @@ if (!empty($search)) {
     $params[] = $term; $params[] = $term; $params[] = $term;
 }
 
-$where_clause = match ($active_tab) {
-    'approved' => "WHERE fv.status = 'Approved'",
-    'rejected' => "WHERE fv.status = 'Rejected'",
-    default => "WHERE fv.status = 'Pending'"
-};
+$where_clause = "";
+switch ($active_tab) {
+    case 'approved': $where_clause = "WHERE fv.status = 'Approved'"; break;
+    case 'rejected': $where_clause = "WHERE fv.status = 'Rejected'"; break;
+    default: $where_clause = "WHERE fv.status = 'Pending'"; break;
+}
 
 $stmt = $pdo->prepare("SELECT fv.*, u.full_name as user_name, r.full_name as reviewer_name 
                          FROM field_visits fv 
@@ -139,7 +140,7 @@ $stats = $pdo->query("SELECT
                     <p class="text-muted mb-0 small">Review and approve employee field submissions.</p>
                 </div>
                 <div class="d-none d-md-block">
-                     <a href="../field_visit_settings.php" class="btn-v2 btn-white-v2">
+                     <a href="field_visit_settings.php" class="btn-v2 btn-white-v2">
                         <i class="bi bi-gear"></i> Settings
                     </a>
                 </div>
@@ -147,6 +148,12 @@ $stats = $pdo->query("SELECT
         </header>
 
         <div class="app-container">
+            <?php if (isset($error)): ?>
+                <div class="alert alert-danger alert-dismissible fade show mb-4" role="alert">
+                    <i class="bi bi-exclamation-triangle-fill me-2"></i> <?= $error ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            <?php endif; ?>
             
             <!-- Quick Stats -->
             <div class="row g-3 mb-4">
@@ -289,6 +296,12 @@ $stats = $pdo->query("SELECT
                                 </div>
                                 <div class="col-6">
                                     <input type="number" name="allowance_ta" class="input-v2 py-1 fs-xs" placeholder="Travel (Rs)">
+                                </div>
+                                <div class="col-6">
+                                    <input type="number" name="charge_printing" class="input-v2 py-1 fs-xs" placeholder="Printing (Rs)">
+                                </div>
+                                <div class="col-6">
+                                    <input type="number" name="charge_parcel" class="input-v2 py-1 fs-xs" placeholder="Parcel (Rs)">
                                 </div>
                             </div>
                         </div>

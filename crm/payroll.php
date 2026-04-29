@@ -8,7 +8,8 @@ require_permission('payroll');
 
 // Update Payroll (Incentives & Deductions)
 if (isset($_POST['update_payroll'])) {
-    $payroll_id = $_POST['payroll_id'];
+    $errors = [];
+    $payroll_id = intval($_POST['payroll_id']);
     $incentives = floatval($_POST['incentives'] ?? 0);
     $deductions = floatval($_POST['deductions'] ?? 0);
     $advance = floatval($_POST['advance'] ?? 0);
@@ -18,19 +19,23 @@ if (isset($_POST['update_payroll'])) {
     $stmt->execute([$payroll_id]);
     $current = $stmt->fetch();
     
-    // Recalculate net salary: basic + TA + incentives - deductions - advance
-    $net_salary = $current['basic_salary'] + $current['travel_allowance'] + $incentives - $deductions - $advance;
-    
-    // Update payroll
-    $stmt = $pdo->prepare("UPDATE payroll SET incentives = ?, deductions = ?, advance = ?, net_salary = ? WHERE id = ?");
-    $stmt->execute([$incentives, $deductions, $advance, $net_salary, $payroll_id]);
-    
-    // Log action (if available)
-    if(function_exists('log_action')) {
-        log_action('UPDATE_PAYROLL', "Updated payroll ID: $payroll_id - Incentives: ₹$incentives, Deductions: ₹$deductions");
+    if ($current) {
+        // Recalculate net salary: basic + TA + incentives - deductions - advance
+        $net_salary = $current['basic_salary'] + $current['travel_allowance'] + $incentives - $deductions - $advance;
+        
+        // Update payroll
+        $stmt = $pdo->prepare("UPDATE payroll SET incentives = ?, deductions = ?, advance = ?, net_salary = ? WHERE id = ?");
+        $stmt->execute([$incentives, $deductions, $advance, $net_salary, $payroll_id]);
+        
+        // Log action (if available)
+        if(function_exists('log_action')) {
+            log_action('UPDATE_PAYROLL', "Updated payroll ID: $payroll_id - Incentives: ₹$incentives, Deductions: ₹$deductions");
+        }
+        header('Location: payroll.php?updated=1');
+        exit;
+    } else {
+        $errors[] = "Payroll record not found.";
     }
-    header('Location: payroll.php?updated=1');
-    exit;
 }
 
 // Approve Payroll
@@ -311,6 +316,7 @@ $payroll_stats = $stats->fetch();
         </header>
 
         <div class="app-container">
+            <?= render_form_errors($errors ?? []) ?>
             <!-- Filter Section -->
             <div class="app-card mb-4">
                 <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between p-3 gap-3">
@@ -608,6 +614,7 @@ $payroll_stats = $stats->fetch();
     </nav>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../assets/js/validation.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>

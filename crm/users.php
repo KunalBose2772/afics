@@ -34,7 +34,6 @@ if (isset($_GET['delete'])) {
         if (!in_array($user_to_delete['role'], $protected_roles) && !in_array($user_to_delete['email'], $protected_emails)) {
             $stmt = $pdo->prepare("DELETE FROM users WHERE id = ?");
             $stmt->execute([$id]);
-            // Audit log could go here if implemented
         }
     }
     header('Location: users.php');
@@ -43,40 +42,93 @@ if (isset($_GET['delete'])) {
 
 // Handle Save/Update User
 if (isset($_POST['save_user'])) {
-    try {
-        $id = $_POST['id'] ?? null;
-        $full_name = $_POST['full_name'];
-        $email = $_POST['email'];
-        $phone = $_POST['phone'];
-        $role = $_POST['role'];
-        $reporting_to = !empty($_POST['reporting_to']) ? $_POST['reporting_to'] : null;
-        $employee_id = $_POST['employee_id'];
-        $target_points = $_POST['target_points'] ?? 0;
-        
-        if ($id) {
-            // Update
-            $sql = "UPDATE users SET full_name = ?, email = ?, phone = ?, role = ?, reporting_to = ?, employee_id = ?, target_points = ? WHERE id = ?";
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([$full_name, $email, $phone, $role, $reporting_to, $employee_id, $target_points, $id]);
-            if (!empty($_POST['password'])) {
-                $pdo->prepare("UPDATE users SET password = ? WHERE id = ?")->execute([password_hash($_POST['password'], PASSWORD_DEFAULT), $id]);
+    $errors = [];
+    $id = $_POST['id'] ?? null;
+    
+    // Validation
+    $req_fields = [
+        'full_name' => 'Full Name',
+        'email' => 'Email Address',
+        'role' => 'Role'
+    ];
+    $errors = validate_required($req_fields, $_POST);
+    
+    $email = sanitize_input($_POST['email']);
+    if (empty($errors) && !validate_email($email)) {
+        $errors[] = "Invalid email format.";
+    }
+
+    if (!$id && empty($_POST['password'])) {
+        $errors[] = "Password is required for new users.";
+    }
+
+    if (empty($errors)) {
+        try {
+            $full_name = sanitize_input($_POST['full_name']);
+            $phone = sanitize_input($_POST['phone'] ?? '');
+            $role_input = sanitize_input($_POST['role']);
+            $reporting_to = !empty($_POST['reporting_to']) ? intval($_POST['reporting_to']) : null;
+            $employee_id = sanitize_input($_POST['employee_id'] ?? '');
+            $target_points = intval($_POST['target_points'] ?? 0);
+            $new_profile_picture = null;
+
+            if (isset($_FILES['profile_picture']) && $_FILES['profile_picture']['error'] !== UPLOAD_ERR_NO_FILE) {
+                if ($_FILES['profile_picture']['error'] !== UPLOAD_ERR_OK) {
+                    throw new Exception("Profile picture upload failed.");
+                }
+
+                $ext = strtolower(pathinfo($_FILES['profile_picture']['name'], PATHINFO_EXTENSION));
+                $allowed_image_types = ['jpg', 'jpeg', 'png', 'webp'];
+                if (!in_array($ext, $allowed_image_types, true)) {
+                    throw new Exception("Profile picture must be JPG, PNG, or WebP.");
+                }
+
+                $upload_dir = '../uploads/profiles/';
+                if (!is_dir($upload_dir)) {
+                    mkdir($upload_dir, 0777, true);
+                }
+
+                $new_profile_picture = 'profile_user_' . ($id ?: 'new') . '_' . time() . '.' . $ext;
+                $target_file = $upload_dir . $new_profile_picture;
+
+                if (!move_uploaded_file($_FILES['profile_picture']['tmp_name'], $target_file)) {
+                    throw new Exception("Unable to save profile picture.");
+                }
             }
-        } else {
-            // Create
-            $password = !empty($_POST['password']) ? password_hash($_POST['password'], PASSWORD_DEFAULT) : password_hash('123456', PASSWORD_DEFAULT);
-            $sql = "INSERT INTO users (full_name, email, phone, role, reporting_to, employee_id, password, target_points) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([$full_name, $email, $phone, $role, $reporting_to, $employee_id, $password, $target_points]);
+            
+            if ($id) {
+                // Update
+                $sql = "UPDATE users SET full_name = ?, email = ?, phone = ?, role = ?, reporting_to = ?, employee_id = ?, target_points = ? WHERE id = ?";
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute([$full_name, $email, $phone, $role_input, $reporting_to, $employee_id, $target_points, $id]);
+                if ($new_profile_picture) {
+                    $pdo->prepare("UPDATE users SET profile_picture = ? WHERE id = ?")->execute([$new_profile_picture, $id]);
+                }
+                if (!empty($_POST['password'])) {
+                    $pdo->prepare("UPDATE users SET password = ? WHERE id = ?")->execute([password_hash($_POST['password'], PASSWORD_DEFAULT), $id]);
+                }
+            } else {
+                // Create
+                $password = password_hash($_POST['password'], PASSWORD_DEFAULT);
+                $sql = "INSERT INTO users (full_name, email, phone, role, reporting_to, employee_id, password, target_points) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute([$full_name, $email, $phone, $role_input, $reporting_to, $employee_id, $password, $target_points]);
+                $new_user_id = $pdo->lastInsertId();
+                if ($new_profile_picture) {
+                    $final_profile_picture = 'profile_user_' . $new_user_id . '_' . time() . '.' . pathinfo($new_profile_picture, PATHINFO_EXTENSION);
+                    @rename('../uploads/profiles/' . $new_profile_picture, '../uploads/profiles/' . $final_profile_picture);
+                    $pdo->prepare("UPDATE users SET profile_picture = ? WHERE id = ?")->execute([$final_profile_picture, $new_user_id]);
+                }
+            }
+            header('Location: users.php?success=1');
+            exit;
+        } catch (Exception $e) {
+            $errors[] = "Database Error: " . $e->getMessage();
         }
-        header('Location: users.php?success=1');
-        exit;
-    } catch (Exception $e) {
-        $error_message = $e->getMessage();
     }
 }
 
 // Fetch Users with Search and Filter
-// ALWAYS exclude Super Admin and Website Manager from general view
 $whereConditions = ["u.role != 'super_admin'", "u.role != 'website_manager'"];
 $params = [];
 
@@ -86,13 +138,10 @@ $role_filter = $_GET['role'] ?? '';
 if (!empty($search)) {
     $whereConditions[] = "(u.full_name LIKE ? OR u.email LIKE ? OR u.employee_id LIKE ?)";
     $term = "%$search%";
-    $params[] = $term;
-    $params[] = $term;
-    $params[] = $term;
+    $params[] = $term; $params[] = $term; $params[] = $term;
 }
 
 if (!empty($role_filter)) {
-    // Double check that the user is not trying to fish for hidden roles
     if (!in_array($role_filter, ['super_admin', 'website_manager'])) {
         $whereConditions[] = "u.role = ?";
         $params[] = $role_filter;
@@ -129,7 +178,6 @@ if ($action == 'edit' && isset($_GET['id'])) {
     <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-    <!-- Mobile Top Bar -->
     <div class="mobile-top-bar d-lg-none">
         <div class="d-flex align-items-center gap-2">
             <img src="../assets/images/documantraa_logo.png" alt="Logo" style="height: 32px;">
@@ -139,7 +187,6 @@ if ($action == 'edit' && isset($_GET['id'])) {
         </button>
     </div>
 
-    <!-- Sidebar (Mobile & Desktop) -->
     <?php include 'includes/sidebar.php'; ?>
 
     <div class="main-content-wrapper">
@@ -150,7 +197,6 @@ if ($action == 'edit' && isset($_GET['id'])) {
                     <button type="button" class="btn-v2 btn-white-v2 border" onclick="downloadBulkIDCards()" id="bulkDownloadBtn" style="display:none;">
                         <i class="bi bi-download"></i> Cards (<span id="selectedCount">0</span>)
                     </button>
-                    <!-- Link to create user -->
                     <a href="users.php?action=<?= $action == 'list' ? 'create' : 'list' ?>" class="btn-v2 <?= $action == 'list' ? 'btn-primary-v2' : 'btn-white-v2 border' ?>">
                         <i class="bi <?= $action == 'list' ? 'bi-plus-lg' : 'bi-arrow-left' ?>"></i> 
                         <span class="d-none d-sm-inline"><?= $action == 'list' ? 'Add User' : 'Back to List' ?></span>
@@ -172,6 +218,7 @@ if ($action == 'edit' && isset($_GET['id'])) {
                             <option value="fo_manager" <?= $role_filter === 'fo_manager' ? 'selected' : '' ?>>FO Manager</option>
                             <option value="field_agent" <?= $role_filter === 'field_agent' ? 'selected' : '' ?>>Field Agent</option>
                             <option value="investigator" <?= $role_filter === 'investigator' ? 'selected' : '' ?>>Investigator</option>
+                            <option value="doctor" <?= $role_filter === 'doctor' ? 'selected' : '' ?>>Doctor</option>
                         </select>
                         <input type="text" name="search" class="input-v2 py-1" placeholder="Search users..." value="<?= htmlspecialchars($search) ?>">
                     </form>
@@ -196,7 +243,7 @@ if ($action == 'edit' && isset($_GET['id'])) {
                                     <input type="checkbox" class="form-check-input user-checkbox" value="<?= $user['id'] ?>" onchange="updateBulkDownloadBtn()">
                                 </td>
                                 <td class="py-3 align-middle">
-                                    <span class="user-id-badge"><?= htmlspecialchars($user['employee_id'] ?? 'DOC-' . str_pad($user['id'], 4, '0', STR_PAD_LEFT)) ?></span>
+                                    <span class="user-id-badge"><?= htmlspecialchars($user['employee_id'] ?? 'AFI-DMI-' . str_pad($user['id'], 5, '0', STR_PAD_LEFT)) ?></span>
                                 </td>
                                 <td class="py-3 align-middle">
                                     <div class="d-flex align-items-center gap-3">
@@ -237,16 +284,31 @@ if ($action == 'edit' && isset($_GET['id'])) {
                     </table>
                 </div>
             </div>
-            <?php else: // Action Create or Edit ?>
+            <?php else: ?>
             <div class="row justify-content-center">
                 <div class="col-xl-8">
                     <div class="app-card p-4">
                         <h3 class="card-title-v2 mb-4"><?= $action == 'create' ? 'Create New User' : 'Edit User Profile' ?></h3>
-                        <form method="POST">
+                        <form method="POST" enctype="multipart/form-data" class="needs-validation" novalidate>
                             <input type="hidden" name="save_user" value="1">
                             <?php if($edit_user): ?> <input type="hidden" name="id" value="<?= $edit_user['id'] ?>"> <?php endif; ?>
                             
                             <div class="row g-4">
+                                <div class="col-12">
+                                    <label class="stat-label mb-1">Profile Picture</label>
+                                    <div class="d-flex align-items-center gap-3 flex-wrap">
+                                        <?php if (!empty($edit_user['profile_picture'])): ?>
+                                        <img src="../uploads/profiles/<?= htmlspecialchars($edit_user['profile_picture']) ?>" alt="Profile Picture" style="width: 72px; height: 72px; object-fit: cover; border-radius: 50%; border: 1px solid var(--border);">
+                                        <?php else: ?>
+                                        <div class="user-avatar-small" style="width: 72px; height: 72px; font-size: 1.5rem;">
+                                            <?= strtoupper(substr($edit_user['full_name'] ?? 'U', 0, 1)) ?>
+                                        </div>
+                                        <?php endif; ?>
+                                        <div class="flex-grow-1">
+                                            <input type="file" name="profile_picture" class="form-control input-v2" accept=".jpg,.jpeg,.png,.webp">
+                                        </div>
+                                    </div>
+                                </div>
                                 <div class="col-md-6">
                                     <label class="stat-label mb-1">Full Name</label>
                                     <input type="text" name="full_name" class="input-v2" value="<?= $edit_user['full_name'] ?? '' ?>" required>
@@ -257,7 +319,10 @@ if ($action == 'edit' && isset($_GET['id'])) {
                                 </div>
                                 <div class="col-md-6">
                                     <label class="stat-label mb-1">Employee / FO ID</label>
-                                    <input type="text" name="employee_id" class="input-v2" value="<?= $edit_user['employee_id'] ?? '' ?>" placeholder="DOC-0001">
+                                    <div class="input-group">
+                                        <input type="text" name="employee_id" id="employee_id" class="input-v2 form-control" value="<?= $edit_user['employee_id'] ?? '' ?>">
+                                        <button class="btn btn-outline-secondary" type="button" onclick="generateEmployeeID()"><i class="bi bi-arrow-clockwise"></i></button>
+                                    </div>
                                 </div>
                                 <div class="col-md-6">
                                     <label class="stat-label mb-1">Phone Number</label>
@@ -270,6 +335,7 @@ if ($action == 'edit' && isset($_GET['id'])) {
                                         <option value="team_manager" <?= ($edit_user['role'] ?? '') == 'team_manager' ? 'selected' : '' ?>>Team Manager</option>
                                         <option value="fo_manager" <?= ($edit_user['role'] ?? '') == 'fo_manager' ? 'selected' : '' ?>>FO Manager</option>
                                         <option value="manager" <?= ($edit_user['role'] ?? '') == 'manager' ? 'selected' : '' ?>>Manager</option>
+                                        <option value="doctor" <?= ($edit_user['role'] ?? '') == 'doctor' ? 'selected' : '' ?>>Doctor</option>
                                         <option value="admin" <?= ($edit_user['role'] ?? '') == 'admin' ? 'selected' : '' ?>>Admin</option>
                                         <option value="hod" <?= ($edit_user['role'] ?? '') == 'hod' ? 'selected' : '' ?>>HOD</option>
                                     </select>
@@ -286,11 +352,11 @@ if ($action == 'edit' && isset($_GET['id'])) {
                                     </select>
                                 </div>
                                 <div class="col-md-6">
-                                    <label class="stat-label mb-1">Monthly Target Points</label>
-                                    <input type="number" name="target_points" class="input-v2" value="<?= $edit_user['target_points'] ?? '0' ?>" placeholder="e.g. 150, 300, 500">
+                                    <label class="stat-label mb-1">Target Points</label>
+                                    <input type="number" name="target_points" class="input-v2" value="<?= $edit_user['target_points'] ?? '0' ?>">
                                 </div>
                                 <div class="col-md-12">
-                                    <label class="stat-label mb-1">Login Password <?= $action == 'edit' ? '<small class="text-muted">(Leave blank to keep current)</small>' : '' ?></label>
+                                    <label class="stat-label mb-1">Login Password</label>
                                     <input type="password" name="password" class="input-v2" <?= $action == 'create' ? 'required' : '' ?>>
                                 </div>
                                 
@@ -308,184 +374,32 @@ if ($action == 'edit' && isset($_GET['id'])) {
         </div>
     </div>
 
-    <!-- Hidden ID Card Container for Generation -->
-    <div id="hiddenIDCardsContainer" style="position: fixed; left: -9999px; top: 0;"></div>
-
-     <!-- Progress Modal -->
-    <div class="modal fade" id="progressModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content" style="border-radius: var(--radius-lg); border: none;">
-                <div class="modal-header border-bottom-0 pb-0">
-                    <h5 class="modal-title fw-bold">Generating ID Cards...</h5>
-                </div>
-                <div class="modal-body">
-                    <div class="d-flex justify-content-between mb-2 small text-muted">
-                        <span>Progress</span>
-                        <span><span id="currentProgress">0</span> / <span id="totalProgress">0</span></span>
-                    </div>
-                    <div class="progress" style="height: 10px; border-radius: 99px;">
-                        <div id="progressBar" class="progress-bar bg-primary" role="progressbar" style="width: 0%"></div>
-                    </div>
-                    <p class="text-center mt-3 mb-0 text-muted small" id="currentStatus">Preparing...</p>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Mobile Bottom Nav -->
-    <nav class="bottom-nav">
-        <a href="dashboard.php" class="bottom-nav-item">
-            <i class="bi bi-grid-1x2-fill"></i>
-            <span>Home</span>
-        </a>
-        <a href="my_profile.php" class="bottom-nav-item">
-            <i class="bi bi-person"></i>
-            <span>Profile</span>
-        </a>
-         <div style="position: relative; top: -20px;">
-            <a href="../user_form.php" class="bottom-nav-icon-main">
-                <i class="bi bi-plus-lg"></i>
-            </a>
-        </div>
-        <a href="field_visits.php" class="bottom-nav-item">
-            <i class="bi bi-geo-alt"></i>
-            <span>Visits</span>
-        </a>
-        <a href="#" class="bottom-nav-item">
-            <i class="bi bi-credit-card"></i>
-            <span>Pay</span>
-        </a>
-    </nav>
-
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
-    
     <script>
-    // Toggle Select All checkboxes
     function toggleSelectAll(checkbox) {
         document.querySelectorAll('.user-checkbox').forEach(cb => cb.checked = checkbox.checked);
         updateBulkDownloadBtn();
     }
     
-    // Update bulk download button visibility
     function updateBulkDownloadBtn() {
         const count = document.querySelectorAll('.user-checkbox:checked').length;
         document.getElementById('bulkDownloadBtn').style.display = count > 0 ? 'inline-flex' : 'none';
         document.getElementById('selectedCount').textContent = count;
-        
-        // Update master checkbox if needed
-        const total = document.querySelectorAll('.user-checkbox').length;
-        document.getElementById('selectAll').checked = (count === total && total > 0);
     }
-    
-    // Create ID Card HTML (Replicates v1 logic but adapted for v2 styles if needed, 
-    // keeping inline styles to ensure canvas capture is accurate)
-    function createIDCardHTML(user) {
-        const profilePicture = user.profile_picture 
-            ? `<img src="../uploads/profiles/${user.profile_picture}" 
-                   style="width: 126px; height: 154px; min-width: 126px; min-height: 154px; object-fit: cover; object-position: center; border-radius: 12px; border: 3px solid #1e5ba8; display: block; margin: 0 auto;">`
-            : `<div class="d-flex align-items-center justify-content-center mx-auto" 
-                    style="width: 126px; height: 154px; background: #e3f2fd; border-radius: 12px; border: 3px solid #1e5ba8;">
-                    <i class="bi bi-person" style="font-size: 3.5rem; color: #1e5ba8;"></i>
-               </div>`;
-        
-        return `
-            <div class="id-card" style="width: 340px; height: 560px; background: #ffffff url('../assets/images/idcard bkcg.png') no-repeat center center; background-size: cover; border-radius: 12px; position: relative; overflow: hidden;">
-                <div style="position: relative; z-index: 10; height: 100%; padding: 30px 25px;">
-                    <div class="text-center mb-3" style="margin-top: -8px;">
-                        <img src="../assets/images/documantraa_logo.png" alt="Documantraa" style="max-height: 50px;">
-                    </div>
-                    <div class="text-center mb-3">
-                        ${profilePicture}
-                    </div>
-                    <div class="text-center mb-1" style="background: #1e5ba8; color: white; padding: 8px; border-radius: 8px; font-weight: bold; font-size: 1rem;">
-                        ${user.full_name.toUpperCase()}
-                    </div>
-                    <div class="text-center mb-3" style="color: #1e5ba8; font-weight: 600; font-size: 0.9rem;">
-                        ${user.role.toUpperCase().replace('_', ' ')}
-                    </div>
-                    <div style="color: #1e5ba8; font-size: 0.85rem; line-height: 1.8; text-align: left;">
-                        <div>
-                            <span style="display: inline-block; width: 70px;"><strong>ID No</strong></span> : ${user.employee_id || 'DOC-' + String(user.id).padStart(4, '0')}
-                        </div>
-                        <div style="word-break: break-word;">
-                            <span style="display: inline-block; width: 70px;"><strong>Email</strong></span> : ${user.email}
-                        </div>
-                        <div>
-                            <span style="display: inline-block; width: 70px;"><strong>Phone</strong></span> : ${user.phone || 'N/A'}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `;
+
+    function generateEmployeeID() {
+        const rand = Math.floor(10000 + Math.random() * 90000);
+        const empId = 'AFI-DMI-' + rand;
+        document.getElementById('employee_id').value = empId;
     }
-    
-    // Download Bulk ID Cards
-    async function downloadBulkIDCards() {
-        const userIds = Array.from(document.querySelectorAll('.user-checkbox:checked')).map(cb => cb.value);
-        if (userIds.length === 0) return;
-        
-        const progressModal = new bootstrap.Modal(document.getElementById('progressModal'));
-        progressModal.show();
-        
-        try {
-            document.getElementById('currentStatus').textContent = 'Fetching user data...';
-            // Need to create this ajax helper or reuse existing logic
-            // For now, let's assume we fetch details from a new endpoint or existing one
-            // To be safe, we might need to create ../ajax/get_users_bulk.php or similar
-            // OR reuse existing generation logic.
-            // Since V1 had generate_bulk_id_cards.php in root, let's check path.
-            
-            const response = await fetch('generate_bulk_id_cards.php', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-                body: 'user_ids=' + encodeURIComponent(JSON.stringify(userIds))
-            });
-            
-            const data = await response.json();
-            if (!data.success) throw new Error(data.error);
-            
-            const users = data.users;
-            const total = users.length;
-            document.getElementById('totalProgress').textContent = total;
-            
-            const zip = new JSZip();
-            const idCardsFolder = zip.folder('ID_Cards');
-            
-            for (let i = 0; i < users.length; i++) {
-                const user = users[i];
-                document.getElementById('currentProgress').textContent = i + 1;
-                document.getElementById('currentStatus').textContent = `Generating ID card for ${user.full_name}...`;
-                document.getElementById('progressBar').style.width = Math.round(((i + 1) / total) * 100) + '%';
-                
-                const container = document.getElementById('hiddenIDCardsContainer');
-                container.innerHTML = createIDCardHTML(user);
-                
-                // Wait for image load
-                await new Promise(r => setTimeout(r, 500));
-                
-                const canvas = await html2canvas(container.querySelector('.id-card'), {
-                    scale: 3, backgroundColor: '#ffffff', useCORS: true, allowTaint: true
-                });
-                
-                const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
-                idCardsFolder.file(`Documantraa_ID_${user.id}.png`, blob);
-            }
-            
-            document.getElementById('currentStatus').textContent = 'Zipping...';
-            const zipBlob = await zip.generateAsync({ type: 'blob' });
-            saveAs(zipBlob, `ID_Cards_${new Date().toISOString().split('T')[0]}.zip`);
-            
-            progressModal.hide();
-            // Reset
-             document.getElementById('progressBar').style.width = '0%';
-        } catch (error) {
-            console.error(error);
-            document.getElementById('currentStatus').textContent = 'Error: ' + error.message;
+
+    <?php if ($action == 'create'): ?>
+    window.addEventListener('load', function() {
+        if(!document.getElementById('employee_id').value) {
+            generateEmployeeID();
         }
-    }
+    });
+    <?php endif; ?>
     </script>
 </body>
 </html>

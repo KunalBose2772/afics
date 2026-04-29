@@ -10,10 +10,18 @@ if (!isset($_GET['id'])) {
 $project_id = $_GET['id'];
 
 // Fetch Data
-$stmt = $pdo->prepare("SELECT p.*, c.company_name, u.full_name as officer_name, u.employee_id as officer_code, d.full_name as doctor_name 
+$stmt = $pdo->prepare("SELECT p.*, c.company_name, 
+                      u.full_name as officer_name, u.employee_id as officer_code,
+                      pt.full_name as pt_fo_name, pt.employee_id as pt_fo_code,
+                      hp.full_name as hp_fo_name, hp.employee_id as hp_fo_code,
+                      ot.full_name as ot_fo_name, ot.employee_id as ot_fo_code,
+                      d.full_name as doctor_name 
                       FROM projects p 
                       JOIN clients c ON p.client_id = c.id 
                       LEFT JOIN users u ON p.assigned_to = u.id 
+                      LEFT JOIN users pt ON p.pt_fo_id = pt.id
+                      LEFT JOIN users hp ON p.hp_fo_id = hp.id
+                      LEFT JOIN users ot ON p.other_fo_id = ot.id
                       LEFT JOIN users d ON p.assigned_doctor_id = d.id
                       WHERE p.id = ?");
 $stmt->execute([$project_id]);
@@ -25,9 +33,17 @@ if (!$project) {
 
 // Access Control
 $curr_role = $_SESSION['role'] ?? '';
-$is_ho_staff = in_array($curr_role, ['admin', 'super_admin', 'manager', 'coordinator', 'hr', 'hr_manager', 'doctor']);
-if (!$is_ho_staff && $project['assigned_to'] != $_SESSION['user_id']) {
-    die("Access Denied: You are not assigned to this case.");
+$is_ho_staff = in_array($curr_role, ['admin', 'super_admin', 'manager', 'coordinator', 'hr', 'hr_manager', 'team_manager', 'fo_manager']);
+$is_assigned = (
+    $project['assigned_to'] == $_SESSION['user_id'] || 
+    $project['pt_fo_id'] == $_SESSION['user_id'] || 
+    $project['hp_fo_id'] == $_SESSION['user_id'] || 
+    $project['other_fo_id'] == $_SESSION['user_id'] ||
+    $project['assigned_doctor_id'] == $_SESSION['user_id']
+);
+
+if (!$is_ho_staff && !$is_assigned) {
+    die("Access Denied: You are not assigned to this case. The assigned FO can download the authorization letter.");
 }
 
 // Format Data
@@ -38,7 +54,29 @@ $insurance_co = $project['company_name'];
 $claim_no = $project['claim_number'];
 $doa = $project['doa'] ? date('d-m-Y', strtotime($project['doa'])) : '-';
 $uhid = $project['uhid'] ?? '-';
-$officer_name = $project['officer_name'] ?? 'Authorized Officer';
+
+// Determine which FO name to show
+$curr_user_id = $_SESSION['user_id'] ?? 0;
+$officer_name = 'Authorized Officer';
+$officer_code = 'N/A';
+
+if ($project['assigned_to'] == $curr_user_id) {
+    $officer_name = $project['officer_name'];
+    $officer_code = $project['officer_code'];
+} elseif ($project['pt_fo_id'] == $curr_user_id) {
+    $officer_name = $project['pt_fo_name'];
+    $officer_code = $project['pt_fo_code'];
+} elseif ($project['hp_fo_id'] == $curr_user_id) {
+    $officer_name = $project['hp_fo_name'];
+    $officer_code = $project['hp_fo_code'];
+} elseif ($project['other_fo_id'] == $curr_user_id) {
+    $officer_name = $project['ot_fo_name'];
+    $officer_code = $project['ot_fo_code'];
+} else {
+    // If HO staff downloads, use primary FO if exists, else first available
+    $officer_name = $project['officer_name'] ?: ($project['pt_fo_name'] ?: ($project['hp_fo_name'] ?: ($project['ot_fo_name'] ?: 'Authorized Officer')));
+    $officer_code = $project['officer_code'] ?: ($project['pt_fo_code'] ?: ($project['hp_fo_code'] ?: ($project['ot_fo_code'] ?: 'N/A')));
+}
 
 // Paths
 $logo_path = "../assets/images/documantraa_logo.png";
@@ -141,7 +179,7 @@ $seal_path = "../assets/images/auth_seal.png";
                             <tr><td class="info-label">Claim Number</td><td>: <?= htmlspecialchars($claim_no) ?></td></tr>
                             <tr><td class="info-label">IP / UHID No.</td><td>: <?= htmlspecialchars($uhid) ?></td></tr>
                             <tr><td class="info-label">Admission Date</td><td>: <?= $doa ?></td></tr>
-                            <tr><td class="info-label">Assigned Officer</td><td>: <?= htmlspecialchars($officer_name) ?></td></tr>
+                            <tr><td class="info-label">Assigned Officer</td><td>: <strong><?= htmlspecialchars(strtoupper($officer_name)) ?></strong> (ID: <?= htmlspecialchars($officer_code) ?>)</td></tr>
                         </table>
 
                         <p>In accordance with industry standard normalization procedures, we kindly request the hospital to verify that the patient profile and clinical data align with the records submitted for insurance processing.</p>

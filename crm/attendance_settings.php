@@ -1,12 +1,12 @@
 <?php
 require_once 'app_init.php';
 if (!function_exists('has_permission')) {
-    require_once '../auth.php';
+    require_once 'auth.php';
 }
 
 // Basic Auth Check
 if (!isset($_SESSION['user_id'])) {
-    header("Location: ../login.php");
+    header("Location: login.php");
     exit();
 }
 
