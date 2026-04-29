@@ -10,7 +10,7 @@ $role = $_SESSION['role'];
 // --- HANDLERS ---
 $admin_profile_roles = ['super_admin', 'admin', 'hr', 'hr_manager'];
 $can_manage_profile_settings = in_array($role, $admin_profile_roles);
-$can_upload_profile_picture = in_array($role, ['admin', 'hr']);
+$can_upload_profile_picture = in_array($role, ['super_admin', 'admin', 'hr', 'hr_manager']);
 
 // 1. Profile Picture
 if (isset($_POST['update_profile_picture']) && !empty($_POST['cropped_image'])) {
