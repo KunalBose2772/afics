@@ -105,6 +105,7 @@ $documents = $docStmt->fetchAll();
             align-items: center;
             gap: 15px;
             border: 1px solid rgba(255,255,255,0.2);
+            font-family: 'Lexend', sans-serif;
         }
 
         .gps-map-preview {
@@ -119,11 +120,14 @@ $documents = $docStmt->fetchAll();
             color: #94a3b8;
             flex-shrink: 0;
             overflow: hidden;
+            border: 1px solid rgba(255,255,255,0.1);
         }
         
-        .gps-details { line-height: 1.3; font-size: 0.8rem; }
-        .gps-location-main { font-weight: 700; font-size: 0.9rem; margin-bottom: 3px; display: block; color: #60a5fa; }
-        .gps-coords { font-family: monospace; opacity: 0.8; }
+        .gps-details { line-height: 1.4; font-size: 0.75rem; flex: 1; }
+        .gps-location-main { font-weight: 700; font-size: 0.9rem; margin-bottom: 2px; display: block; color: #60a5fa; text-transform: uppercase; letter-spacing: 0.5px; }
+        .gps-coords { font-family: monospace; opacity: 0.9; color: #94a3b8; font-size: 0.7rem; }
+        .gps-timestamp { font-size: 0.65rem; color: #cbd5e1; margin-top: 4px; display: flex; align-items: center; gap: 4px; }
+        .gps-badge { font-size: 0.6rem; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; text-transform: uppercase; margin-left: auto; }
 
         @media print {
             .no-print { display: none !important; }
@@ -157,10 +161,22 @@ $documents = $docStmt->fetchAll();
                 <p class="text-muted small mb-0">Visit Verification Report &middot; Generated on <?= date('d M Y, h:i A') ?></p>
             </div>
             <div class="text-end">
-                <h5 class="fw-bold mb-0"><?= htmlspecialchars($project['claim_number']) ?></h5>
-                <span class="badge bg-primary-subtle text-primary border border-primary px-2" style="font-size: 0.7rem;"><?= htmlspecialchars($project['company_name'] ?? 'N/A') ?></span>
+                <div class="text-muted small fw-bold" style="letter-spacing: 0.05em; font-size: 0.65rem;">CLAIM NUMBER</div>
+                <h5 class="fw-bold mb-0" style="font-family: monospace; color: #1e293b;"><?= htmlspecialchars($project['claim_number']) ?></h5>
+                <span class="badge bg-primary-subtle text-primary border border-primary px-2 mt-1" style="font-size: 0.7rem;"><?= htmlspecialchars($project['company_name'] ?? 'N/A') ?></span>
             </div>
         </header>
+
+        <div class="row mb-4">
+            <div class="col-6">
+                <div class="text-muted small fw-bold">PATIENT NAME</div>
+                <div class="fw-bold"><?= htmlspecialchars($project['title'] ?? 'N/A') ?></div>
+            </div>
+            <div class="col-6 text-end">
+                <div class="text-muted small fw-bold">HOSPITAL NAME</div>
+                <div class="fw-bold"><?= htmlspecialchars($project['hospital_name'] ?? 'N/A') ?></div>
+            </div>
+        </div>
 
         <section class="mb-5">
             <h5 class="fw-bold mb-4"><i class="bi bi-geo-alt-fill text-danger me-2"></i>Location Verification Evidence</h5>
@@ -182,9 +198,14 @@ $documents = $docStmt->fetchAll();
                             </div>
                             <div class="gps-details">
                                 <span class="gps-location-main"><?= htmlspecialchars($doc['category']) ?></span>
-                                <div class="mb-1 text-white opacity-90"><?= htmlspecialchars($project['hospital_name'] ?? 'Verification at Client/Hospital Location') ?></div>
-                                <div class="gps-coords">Lat <?= $doc['gps_lat'] ?? 'N/A' ?> Long <?= $doc['gps_long'] ?? 'N/A' ?></div>
-                                <div class="small text-white-50 mt-1"><?= date('l, d/m/Y h:i A', strtotime($doc['uploaded_at'])) ?> (IST)</div>
+                                <div class="mb-1 text-white opacity-95 fw-bold"><?= htmlspecialchars($project['hospital_name'] ?? 'Verification Location') ?></div>
+                                <div class="gps-coords">
+                                    <i class="bi bi-pin-map-fill me-1"></i>LAT: <?= $doc['gps_lat'] ?? 'N/A' ?> &nbsp; LONG: <?= $doc['gps_long'] ?? 'N/A' ?>
+                                </div>
+                                <div class="gps-timestamp">
+                                    <i class="bi bi-clock-fill"></i> <?= date('l, d M Y | h:i A', strtotime($doc['uploaded_at'])) ?>
+                                    <span class="gps-badge">Verified Evidence</span>
+                                </div>
                             </div>
                         </div>
                     </div>

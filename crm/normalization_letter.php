@@ -51,7 +51,7 @@ $patient_name = $project['title'] ?? 'Unknown';
 $hospital_name = $project['hospital_name'] ?? 'The Medical Director';
 $hospital_address = nl2br(htmlspecialchars($project['hospital_address'] ?? ''));
 $insurance_co = $project['company_name'];
-$claim_no = $project['claim_number'];
+$claim_no = !empty($project['manual_claim_number']) ? $project['manual_claim_number'] : ($project['claim_number'] ?? 'N/A');
 $doa = $project['doa'] ? date('d-m-Y', strtotime($project['doa'])) : '-';
 $uhid = $project['uhid'] ?? '-';
 
@@ -147,7 +147,7 @@ $seal_path = "../assets/images/auth_seal.png";
                             <div style="font-size: 9pt; margin-top: 5px;">
                                 India Head Office: Calicut, Kerala<br>
                                 Verification & Investigation Services<br>
-                                Email: support@documantraa.in
+                                Email: support@documantraa.in | Web: www.documantraa.in | www.afics.in
                             </div>
                         </div>
                         <div class="text-end">

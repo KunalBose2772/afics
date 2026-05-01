@@ -30,6 +30,10 @@ self.addEventListener('activate', function(event) {
 });
 
 self.addEventListener('fetch', function(event) {
+  if (event.request.method !== 'GET') {
+    return;
+  }
+
   if (event.request.mode === 'navigate') {
     event.respondWith(
       fetch(event.request).catch(function() {
@@ -39,7 +43,14 @@ self.addEventListener('fetch', function(event) {
   } else {
     event.respondWith(
       caches.match(event.request).then(function(response) {
-        return response || fetch(event.request);
+        if (response) {
+          return response;
+        }
+
+        return fetch(event.request).catch(function() {
+          // Avoid unhandled promise rejections for transient network failures.
+          return new Response('', { status: 503, statusText: 'Offline' });
+        });
       })
     );
   }

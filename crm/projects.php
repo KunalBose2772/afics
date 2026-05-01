@@ -532,36 +532,45 @@ if (isset($_POST['update_project_details'])) {
     }
     try {
         $pid = $_POST['project_id'];
-        $title = $_POST['title'];
-        $claim_number = $_POST['claim_number']; // AFICS ID
-        $manual_claim_number = sanitize_input($_POST['manual_claim_number'] ?? '');
-        $scope = $_POST['scope'];
-        $assigned_to = !empty($_POST['assigned_to']) ? $_POST['assigned_to'] : null;
-        $team_manager_id = !empty($_POST['team_manager_id']) ? $_POST['team_manager_id'] : null;
-        $manager_id = !empty($_POST['manager_id']) ? $_POST['manager_id'] : null;
-        $pt_fo_id = !empty($_POST['pt_fo_id']) ? $_POST['pt_fo_id'] : null;
-        $hp_fo_id = !empty($_POST['hp_fo_id']) ? $_POST['hp_fo_id'] : null;
-        $other_fo_id = !empty($_POST['other_fo_id']) ? $_POST['other_fo_id'] : null;
-        $tat_deadline = $_POST['tat_deadline'];
-        $description = $_POST['description'];
-        $hospital_name = $_POST['hospital_name'] ?? null;
-        $hospital_address = $_POST['hospital_address'] ?? null;
-        $case_points = $_POST['case_points'] ?? 0;
-        $assigned_doctor_id = !empty($_POST['assigned_doctor_id']) ? $_POST['assigned_doctor_id'] : null;
-        $closure_conclusion = $_POST['closure_conclusion'] ?? null;
-        $claim_type = $_POST['claim_type'] ?? 'REIMBURSEMENT';
-        $main_complaints = $_POST['main_complaints'] ?? '';
         
-        $tm_points = floatval($_POST['tm_points'] ?? 0);
-        $dr_points = floatval($_POST['dr_points'] ?? 0);
-        $mngr_points = floatval($_POST['mngr_points'] ?? 0);
-        $pt_fo_points = floatval($_POST['pt_fo_points'] ?? 0);
-        $hp_fo_points = floatval($_POST['hp_fo_points'] ?? 0);
-        $other_fo_points = floatval($_POST['other_fo_points'] ?? 0);
+        // Fetch current project data to use as fallback for blank fields
+        $stmt_old = $pdo->prepare("SELECT * FROM projects WHERE id = ?");
+        $stmt_old->execute([$pid]);
+        $old = $stmt_old->fetch();
+        if (!$old) throw new Exception("Project not found.");
 
-        $price_hospital = floatval($_POST['price_hospital'] ?? 0);
-        $price_patient = floatval($_POST['price_patient'] ?? 0);
-        $price_other = floatval($_POST['price_other'] ?? 0);
+        $title               = !empty($_POST['title']) ? sanitize_input($_POST['title']) : $old['title'];
+        $claim_number        = !empty($_POST['claim_number']) ? sanitize_input($_POST['claim_number']) : $old['claim_number'];
+        $manual_claim_number = !empty($_POST['manual_claim_number']) ? sanitize_input($_POST['manual_claim_number']) : $old['manual_claim_number'];
+        $scope               = !empty($_POST['scope']) ? sanitize_input($_POST['scope']) : $old['scope'];
+        $claim_type          = !empty($_POST['claim_type']) ? sanitize_input($_POST['claim_type']) : $old['claim_type'];
+        
+        $assigned_to         = isset($_POST['assigned_to']) && $_POST['assigned_to'] !== '' ? intval($_POST['assigned_to']) : $old['assigned_to'];
+        $team_manager_id     = isset($_POST['team_manager_id']) && $_POST['team_manager_id'] !== '' ? intval($_POST['team_manager_id']) : $old['team_manager_id'];
+        $manager_id          = isset($_POST['manager_id']) && $_POST['manager_id'] !== '' ? intval($_POST['manager_id']) : $old['manager_id'];
+        $pt_fo_id            = isset($_POST['pt_fo_id']) && $_POST['pt_fo_id'] !== '' ? intval($_POST['pt_fo_id']) : $old['pt_fo_id'];
+        $hp_fo_id            = isset($_POST['hp_fo_id']) && $_POST['hp_fo_id'] !== '' ? intval($_POST['hp_fo_id']) : $old['hp_fo_id'];
+        $other_fo_id         = isset($_POST['other_fo_id']) && $_POST['other_fo_id'] !== '' ? intval($_POST['other_fo_id']) : $old['other_fo_id'];
+        $assigned_doctor_id  = isset($_POST['assigned_doctor_id']) && $_POST['assigned_doctor_id'] !== '' ? intval($_POST['assigned_doctor_id']) : $old['assigned_doctor_id'];
+
+        $tat_deadline        = !empty($_POST['tat_deadline']) ? $_POST['tat_deadline'] : $old['tat_deadline'];
+        $description         = isset($_POST['description']) && $_POST['description'] !== '' ? sanitize_input($_POST['description']) : $old['description'];
+        $main_complaints     = isset($_POST['main_complaints']) && $_POST['main_complaints'] !== '' ? sanitize_input($_POST['main_complaints']) : $old['main_complaints'];
+        $hospital_name       = isset($_POST['hospital_name']) && $_POST['hospital_name'] !== '' ? sanitize_input($_POST['hospital_name']) : $old['hospital_name'];
+        $hospital_address    = isset($_POST['hospital_address']) && $_POST['hospital_address'] !== '' ? sanitize_input($_POST['hospital_address']) : $old['hospital_address'];
+        $closure_conclusion  = isset($_POST['closure_conclusion']) && $_POST['closure_conclusion'] !== '' ? sanitize_input($_POST['closure_conclusion']) : $old['closure_conclusion'];
+
+        $case_points         = isset($_POST['case_points']) && $_POST['case_points'] !== '' ? floatval($_POST['case_points']) : $old['case_points'];
+        $tm_points           = isset($_POST['tm_points']) && $_POST['tm_points'] !== '' ? floatval($_POST['tm_points']) : $old['tm_points'];
+        $dr_points           = isset($_POST['dr_points']) && $_POST['dr_points'] !== '' ? floatval($_POST['dr_points']) : $old['dr_points'];
+        $mngr_points         = isset($_POST['mngr_points']) && $_POST['mngr_points'] !== '' ? floatval($_POST['mngr_points']) : $old['mngr_points'];
+        $pt_fo_points        = isset($_POST['pt_fo_points']) && $_POST['pt_fo_points'] !== '' ? floatval($_POST['pt_fo_points']) : $old['pt_fo_points'];
+        $hp_fo_points        = isset($_POST['hp_fo_points']) && $_POST['hp_fo_points'] !== '' ? floatval($_POST['hp_fo_points']) : $old['hp_fo_points'];
+        $other_fo_points     = isset($_POST['other_fo_points']) && $_POST['other_fo_points'] !== '' ? floatval($_POST['other_fo_points']) : $old['other_fo_points'];
+
+        $price_hospital      = isset($_POST['price_hospital']) && $_POST['price_hospital'] !== '' ? floatval($_POST['price_hospital']) : $old['price_hospital'];
+        $price_patient       = isset($_POST['price_patient']) && $_POST['price_patient'] !== '' ? floatval($_POST['price_patient']) : $old['price_patient'];
+        $price_other         = isset($_POST['price_other']) && $_POST['price_other'] !== '' ? floatval($_POST['price_other']) : $old['price_other'];
 
         $sql = "UPDATE projects SET title=?, claim_number=?, manual_claim_number=?, scope=?, claim_type=?, assigned_to=?, team_manager_id=?, manager_id=?, pt_fo_id=?, hp_fo_id=?, other_fo_id=?, tat_deadline=?, description=?, main_complaints=?, hospital_name=?, hospital_address=?, case_points=?, tm_points=?, dr_points=?, mngr_points=?, pt_fo_points=?, hp_fo_points=?, other_fo_points=?, assigned_doctor_id=?, closure_conclusion=?, price_hospital=?, price_patient=?, price_other=? WHERE id=?";
         $stmt = $pdo->prepare($sql);
@@ -672,7 +681,14 @@ $is_breach = ($filter == 'breach');
 $search_sql = "";
 if (!empty($search)) {
     $term = $pdo->quote("%$search%");
-    $search_sql = " AND (p.title LIKE $term OR p.claim_number LIKE $term OR p.description LIKE $term OR u.full_name LIKE $term)";
+    $search_sql = " AND (
+        p.title LIKE $term
+        OR p.claim_number LIKE $term
+        OR p.manual_claim_number LIKE $term
+        OR p.description LIKE $term
+        OR c.company_name LIKE $term
+        OR u.full_name LIKE $term
+    )";
 }
 
 // Fetch Data
@@ -859,7 +875,7 @@ $team_managers = $pdo->query("SELECT * FROM users WHERE role IN ('team_manager',
             <!-- Search & Filter -->
             <div class="app-card mb-4">
                 <form method="GET" class="d-flex flex-wrap gap-2 align-items-center">
-                    <input type="text" name="search" class="input-v2" style="max-width: 300px;" placeholder="Search claims..." value="<?= htmlspecialchars($search) ?>">
+                    <input type="text" name="search" class="input-v2" style="max-width: 300px;" placeholder="Search by claim no / AFICS ID / patient..." value="<?= htmlspecialchars($search) ?>">
                     <?php if($is_breach): ?>
                         <input type="hidden" name="filter" value="breach">
                     <?php endif; ?>
@@ -1031,6 +1047,9 @@ $team_managers = $pdo->query("SELECT * FROM users WHERE role IN ('team_manager',
                                     <button type="button" onclick="triggerDailyAlert()" class="btn btn-white-v2 border w-100 py-3 text-start">
                                         <i class="bi bi-envelope-at me-2 text-danger"></i> Send Daily Pending List to FOs
                                     </button>
+                                    <a href="notification_logs.php" class="btn btn-white-v2 border w-100 py-3 text-start">
+                                        <i class="bi bi-bug me-2 text-primary"></i> View Email Delivery Logs (Debug)
+                                    </a>
                                     <div id="alert-status" class="alert alert-info py-2 small d-none" style="font-size: 0.75rem;"></div>
                                 </div>
                                 <script>
@@ -1539,6 +1558,27 @@ $team_managers = $pdo->query("SELECT * FROM users WHERE role IN ('team_manager',
                                 <label class="stat-label mb-1">Main Complaints on Admission</label>
                                 <textarea name="main_complaints" id="edit_main_complaints" class="input-v2" rows="2"></textarea>
                             </div>
+                            <div class="col-md-3">
+                                <label class="stat-label mb-1">Hosp. Price</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light pe-1 small text-muted">&#8377;</span>
+                                    <input type="number" step="0.01" min="0" name="price_hospital" id="edit_price_hospital" class="form-control input-v2 border-start-0 ps-1" placeholder="0.00">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="stat-label mb-1">Pt. Price</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light pe-1 small text-muted">&#8377;</span>
+                                    <input type="number" step="0.01" min="0" name="price_patient" id="edit_price_patient" class="form-control input-v2 border-start-0 ps-1" placeholder="0.00">
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="stat-label mb-1">Other Price</label>
+                                <div class="input-group">
+                                    <span class="input-group-text bg-light pe-1 small text-muted">&#8377;</span>
+                                    <input type="number" step="0.01" min="0" name="price_other" id="edit_price_other" class="form-control input-v2 border-start-0 ps-1" placeholder="0.00">
+                                </div>
+                            </div>
                              <div class="col-md-3">
                                 <label class="stat-label mb-1">Main FO Points</label>
                                 <input type="number" step="0.1" name="case_points" id="edit_case_points" class="input-v2" required>
@@ -1740,6 +1780,9 @@ $team_managers = $pdo->query("SELECT * FROM users WHERE role IN ('team_manager',
             document.getElementById('edit_patient_phone').value = button.getAttribute('data-phone');
             document.getElementById('edit_closure_conclusion').value = button.getAttribute('data-conclusion');
             document.getElementById('edit_assigned_doctor_id').value = button.getAttribute('data-doctor') || '';
+            document.getElementById('edit_price_hospital').value = button.getAttribute('data-price-hosp') || 0;
+            document.getElementById('edit_price_patient').value = button.getAttribute('data-price-pt') || 0;
+            document.getElementById('edit_price_other').value = button.getAttribute('data-price-other') || 0;
             
             const ct = button.getAttribute('data-ctype');
             const selCt = document.getElementById('edit_claim_type');

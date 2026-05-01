@@ -36,7 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['save_ir_data'])) {
         'icp_observation','patient_observation','doctor_observation',
         // Comments
         'investigator_comments','admission_genuinely','patient_paid_amount',
-        'amount_confirmation','closure_conclusion','investigator_phone','investigator_email',
+        'amount_confirmation','closure_conclusion','investigator_name','investigator_phone','investigator_email',
         // Core
         'claim_type','diagnosis','doa','dod','hospital_name','hospital_address',
     ];
@@ -144,6 +144,9 @@ body { font-family: 'Jost', sans-serif; }
                 </div>
             </div>
             <div class="d-flex gap-2">
+                <a href="visit_report.php?id=<?= $pid ?>" target="_blank" class="btn-v2 btn-white-v2 border-danger-subtle text-danger">
+                    <i class="bi bi-file-earmark-pdf-fill"></i> Visit Photo Report
+                </a>
                 <a href="investigation_report.php?id=<?= $pid ?>" target="_blank" class="btn-v2 btn-white-v2">
                     <i class="bi bi-eye"></i> Preview Report
                 </a>
@@ -510,13 +513,19 @@ body { font-family: 'Jost', sans-serif; }
         <!-- ── FOOTER CONTACT DETAILS ── -->
         <div class="ir-section-head"><i class="bi bi-person-lines-fill"></i> Report Prepared By (Contact Details)</div>
         <div class="row g-3">
-            <div class="col-md-6">
+            <div class="col-md-4">
+                <div class="field-group">
+                    <label>Investigator Name</label>
+                    <input type="text" name="investigator_name" placeholder="e.g. Dr. Aswathy" value="<?= $v('investigator_name') ?>">
+                </div>
+            </div>
+            <div class="col-md-4">
                 <div class="field-group">
                     <label>Investigator Mobile No.</label>
                     <input type="text" name="investigator_phone" placeholder="e.g. +91 755 883 4483" value="<?= $v('investigator_phone') ?>">
                 </div>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
                 <div class="field-group">
                     <label>Investigator Email</label>
                     <input type="email" name="investigator_email" placeholder="e.g. support@documantraa.in" value="<?= htmlspecialchars($p['investigator_email'] ?? '', ENT_QUOTES) ?>">

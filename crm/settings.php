@@ -168,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         </div>
                         <div class="col-md-4">
                             <label class="form-label small fw-bold text-muted">SMTP Password</label>
-                            <input type="password" name="smtp_pass" class="form-control input-v2" value="<?= htmlspecialchars($settings['smtp_pass'] ?? 'l]l$+954F') ?>">
+                            <input type="password" name="smtp_pass" class="form-control input-v2" value="<?= htmlspecialchars($settings['smtp_pass'] ?? 'Admin123@documantraa.in') ?>">
                         </div>
                     </div>
 

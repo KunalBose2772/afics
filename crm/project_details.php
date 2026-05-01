@@ -275,6 +275,9 @@ if (!$is_overdue && $tat_days < 3) $tat_class = 'text-warning';
                               <a href="investigation_data.php?id=<?= $pid ?>" class="btn-v2 btn-white-v2 w-100 py-3">
                                  <i class="bi bi-clipboard-data"></i> Edit Report Data
                               </a>
+                              <a href="visit_report.php?id=<?= $pid ?>" target="_blank" class="btn-v2 btn-white-v2 w-100 py-3 text-danger border-danger-subtle">
+                                 <i class="bi bi-file-earmark-pdf-fill"></i> Visit Photo Report
+                              </a>
                              <?php endif; ?>
                          </div>
                     </div>

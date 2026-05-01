@@ -3,6 +3,31 @@ session_start();
 require_once '../config/db.php';
 require_once '../includes/functions.php';
 
+// --- Auto-Login Logic (Remember Me) ---
+if (isset($_SESSION['user_id'])) {
+    header('Location: dashboard.php');
+    exit;
+}
+
+if (isset($_COOKIE['remember_me'])) {
+    $token = $_COOKIE['remember_me'];
+    $stmt = $pdo->prepare("SELECT id, role, full_name FROM users WHERE remember_token = ? AND remember_token IS NOT NULL");
+    $stmt->execute([$token]);
+    $user = $stmt->fetch();
+
+    if ($user) {
+        $_SESSION['user_id'] = $user['id'];
+        $_SESSION['role'] = $user['role'];
+        $_SESSION['full_name'] = $user['full_name'];
+        header('Location: dashboard.php');
+        exit;
+    } else {
+        // Invalid token, clean up
+        setcookie('remember_me', '', time() - 3600, '/');
+    }
+}
+// --- End Auto-Login ---
+
 $settings = get_settings($pdo);
 $errors = [];
 
@@ -32,6 +57,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['user_id'] = $user['id'];
                 $_SESSION['role'] = $user['role'];
                 $_SESSION['full_name'] = $user['full_name'];
+
+                // Handle Remember Me
+                if (isset($_POST['remember'])) {
+                    $token = bin2hex(random_bytes(32));
+                    $stmt = $pdo->prepare("UPDATE users SET remember_token = ? WHERE id = ?");
+                    $stmt->execute([$token, $user['id']]);
+                    
+                    // Set cookie for 30 days
+                    setcookie('remember_me', $token, time() + (30 * 24 * 60 * 60), '/', '', false, true);
+                }
+
                 header('Location: dashboard.php');
                 exit;
             }
@@ -319,6 +355,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         <span class="input-group-text bg-white" id="togglePassword">
                             <i class="bi bi-eye"></i>
                         </span>
+                    </div>
+                </div>
+
+                <div class="form-group d-flex justify-content-between align-items-center mt-3 mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="remember" id="remember" checked>
+                        <label class="form-check-label small text-muted fw-bold" for="remember" style="cursor:pointer; text-transform:uppercase; letter-spacing:0.5px;">
+                            Stay Logged In
+                        </label>
                     </div>
                 </div>
 

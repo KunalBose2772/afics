@@ -15,10 +15,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['add_entry'])) {
     $amount = $_POST['amount'];
     $desc = $_POST['description'];
     
-    // Determine entry type for DB enum
-    $db_type = 'Incentive';
-    if ($type == 'Deduction' || $type == 'Food Allowance' || $type == 'TA' || $type == 'Printing Charge') $db_type = $type;
-    if ($type == 'Point') $db_type = 'Point';
+    // Map UI type to DB enum: enum('Point','Incentive','Deduction','Allowance','Salary')
+    $db_type = 'Incentive'; 
+    $valid_types = ['Point', 'Incentive', 'Deduction', 'Allowance', 'Salary'];
+    
+    if (in_array($type, $valid_types)) {
+        $db_type = $type;
+    } elseif ($type == 'Food Allowance' || $type == 'TA' || $type == 'Printing Charge') {
+        $db_type = 'Allowance'; // Group these as Allowance
+    }
 
     try {
         $stmt = $pdo->prepare("INSERT INTO salary_registry (user_id, entry_date, entry_type, amount, description, added_by) VALUES (?, NOW(), ?, ?, ?, ?)");
@@ -126,6 +131,55 @@ try {
                 </div>
             <?php endif; ?>
 
+            <!-- Staff Summary (Current Month) -->
+            <div class="app-card mb-4 overflow-hidden">
+                <div class="card-header-v2 border-bottom bg-light">
+                    <h5 class="card-title-v2 m-0"><i class="bi bi-people me-2"></i>Staff Summary (<?= date('F Y') ?>)</h5>
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0" style="font-size: 0.85rem;">
+                        <thead class="bg-light">
+                            <tr>
+                                <th class="py-2 ps-3">Staff Member</th>
+                                <th class="py-2 text-center">Staff Type</th>
+                                <th class="py-2 text-center">Points Earned</th>
+                                <th class="py-2 text-center">Manual Salary</th>
+                                <th class="py-2 text-end pe-3">Target</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php
+                            $month = date('n');
+                            $year = date('Y');
+                            $summary_stmt = $pdo->prepare("
+                                SELECT u.full_name, u.staff_type, u.target_points,
+                                       SUM(CASE WHEN s.entry_type = 'Point' THEN s.amount ELSE 0 END) as earned_points,
+                                       SUM(CASE WHEN s.entry_type = 'Salary' THEN s.amount ELSE 0 END) as manual_salary
+                                FROM users u
+                                LEFT JOIN salary_registry s ON u.id = s.user_id AND MONTH(s.entry_date) = ? AND YEAR(s.entry_date) = ?
+                                WHERE u.role != 'admin'
+                                GROUP BY u.id
+                                ORDER BY u.full_name ASC
+                            ");
+                            $summary_stmt->execute([$month, $year]);
+                            $summaries = $summary_stmt->fetchAll();
+                            
+                            foreach ($summaries as $sm):
+                                $p_class = ($sm['earned_points'] >= $sm['target_points'] && $sm['target_points'] > 0) ? 'text-success' : 'text-main';
+                            ?>
+                            <tr>
+                                <td class="py-2 ps-3 fw-bold"><?= htmlspecialchars($sm['full_name']) ?></td>
+                                <td class="py-2 text-center small text-muted"><?= $sm['staff_type'] ?></td>
+                                <td class="py-2 text-center fw-bold <?= $p_class ?>"><?= number_format($sm['earned_points'], 1) ?></td>
+                                <td class="py-2 text-center text-primary">₹<?= number_format($sm['manual_salary'], 2) ?></td>
+                                <td class="py-2 text-end pe-3 text-muted"><?= $sm['target_points'] ?> pts</td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
             <!-- Transactions Table -->
             <div class="app-card overflow-hidden">
                 <div class="card-header-v2 border-bottom">
@@ -152,9 +206,12 @@ try {
                             </tr>
                             <?php else: ?>
                             <?php foreach ($logs as $log): 
-                                $is_deduct = in_array($log['entry_type'], ['Deduction']);
-                                $colorClass = $is_deduct ? 'text-danger' : ($log['entry_type'] == 'Point' ? 'text-info' : 'text-success');
-                                $bgClass = $is_deduct ? 'bg-danger-subtle text-danger' : ($log['entry_type'] == 'Point' ? 'bg-info-subtle text-info' : 'bg-success-subtle text-success');
+                                $is_deduct = ($log['entry_type'] == 'Deduction');
+                                $is_point = ($log['entry_type'] == 'Point');
+                                $is_salary = ($log['entry_type'] == 'Salary');
+                                
+                                $colorClass = $is_deduct ? 'text-danger' : ($is_point ? 'text-info' : ($is_salary ? 'text-primary' : 'text-success'));
+                                $bgClass = $is_deduct ? 'bg-danger-subtle text-danger' : ($is_point ? 'bg-info-subtle text-info' : ($is_salary ? 'bg-primary-subtle text-primary' : 'bg-success-subtle text-success'));
                                 $sign = $is_deduct ? '-' : '+';
                             ?>
                             <tr>
@@ -212,6 +269,7 @@ try {
                             <label class="stat-label mb-1">Entry Type</label>
                             <select name="type" class="input-v2 w-100" required>
                                 <option value="Point">Add Points (Target Base)</option>
+                                <option value="Salary">Monthly Basic Salary (Permanent)</option>
                                 <option value="Incentive">Incentive (Cash)</option>
                                 <option value="Food Allowance">Food Allowance</option>
                                 <option value="TA">Travel Allowance (TA)</option>

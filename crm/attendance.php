@@ -12,6 +12,19 @@ if (!isset($_SESSION['user_id'])) {
 
 require_permission('attendance');
 
+// Ensure database columns exist for check-out location
+try {
+    $check_cols = $pdo->query("SHOW COLUMNS FROM attendance")->fetchAll(PDO::FETCH_COLUMN);
+    if (!in_array('check_out_latitude', $check_cols)) {
+        $pdo->exec("ALTER TABLE attendance ADD COLUMN check_out_latitude DECIMAL(10,8) DEFAULT NULL");
+    }
+    if (!in_array('check_out_longitude', $check_cols)) {
+        $pdo->exec("ALTER TABLE attendance ADD COLUMN check_out_longitude DECIMAL(11,8) DEFAULT NULL");
+    }
+} catch (Exception $e) {
+    // Fail silently if already exists or other error
+}
+
 // Handle Check-in/Check-out
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $errors = [];
@@ -61,8 +74,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $stmt->execute([$user_id, $today, $now, $ip, $lat, $long]);
             }
         } elseif (isset($_POST['check_out'])) {
-            $stmt = $pdo->prepare("UPDATE attendance SET check_out_time = ? WHERE user_id = ? AND date = ?");
-            $stmt->execute([$now, $user_id, $today]);
+            $lat = !empty($_POST['latitude']) ? floatval($_POST['latitude']) : null;
+            $long = !empty($_POST['longitude']) ? floatval($_POST['longitude']) : null;
+            
+            $stmt = $pdo->prepare("UPDATE attendance SET check_out_time = ?, check_out_latitude = ?, check_out_longitude = ? WHERE user_id = ? AND date = ?");
+            $stmt->execute([$now, $lat, $long, $user_id, $today]);
         }
         header('Location: attendance.php');
         exit;
@@ -397,9 +413,10 @@ function isLate($check_in_time, $shift_start, $grace_minutes)
                                 </button>
                                 <input type="hidden" name="check_in" value="1">
                             <?php elseif (!$my_attendance['check_out_time']): ?>
-                                <button type="submit" name="check_out" class="btn-v2" style="background: var(--danger-text); color: white;">
+                                <button type="button" onclick="attemptCheckIn('check_out')" class="btn-v2" style="background: var(--danger-text); color: white;">
                                     <i class="bi bi-box-arrow-right"></i><span class="d-none d-sm-inline ms-1">Check Out</span>
                                 </button>
+                                <input type="hidden" name="check_out" value="1">
                             <?php else: ?>
                                 <button class="btn-v2 btn-white-v2" disabled>
                                     <i class="bi bi-check-circle"></i><span class="d-none d-sm-inline ms-1">Done</span>
@@ -562,14 +579,25 @@ function isLate($check_in_time, $shift_start, $grace_minutes)
                                         <?= $record['check_out_time'] ? date('h:i A', strtotime($record['check_out_time'])) : '--:--' ?>
                                     </td>
                                     <td class="py-3 align-middle">
-                                        <?php if (!empty($record['check_in_latitude']) && !empty($record['check_in_longitude'])): ?>
-                                            <a href="https://www.google.com/maps?q=<?= htmlspecialchars($record['check_in_latitude']) ?>,<?= htmlspecialchars($record['check_in_longitude']) ?>" 
-                                               target="_blank" class="btn-v2 btn-white-v2 p-1 px-2" title="View Location">
-                                                <i class="bi bi-geo-alt-fill"></i> Map
-                                            </a>
-                                        <?php else: ?>
-                                            <span class="text-muted small">N/A</span>
-                                        <?php endif; ?>
+                                        <div class="d-flex flex-column gap-1">
+                                            <?php if (!empty($record['check_in_latitude'])): ?>
+                                                <a href="https://www.google.com/maps?q=<?= htmlspecialchars($record['check_in_latitude']) ?>,<?= htmlspecialchars($record['check_in_longitude']) ?>" 
+                                                   target="_blank" class="btn-v2 btn-white-v2 p-0 px-2" style="font-size: 0.75rem;" title="Check-in Location">
+                                                    <i class="bi bi-geo-alt-fill text-success"></i> In
+                                                </a>
+                                            <?php endif; ?>
+                                            
+                                            <?php if (!empty($record['check_out_latitude'])): ?>
+                                                <a href="https://www.google.com/maps?q=<?= htmlspecialchars($record['check_out_latitude']) ?>,<?= htmlspecialchars($record['check_out_longitude']) ?>" 
+                                                   target="_blank" class="btn-v2 btn-white-v2 p-0 px-2" style="font-size: 0.75rem;" title="Check-out Location">
+                                                    <i class="bi bi-geo-alt-fill text-danger"></i> Out
+                                                </a>
+                                            <?php endif; ?>
+
+                                            <?php if (empty($record['check_in_latitude']) && empty($record['check_out_latitude'])): ?>
+                                                <span class="text-muted small">N/A</span>
+                                            <?php endif; ?>
+                                        </div>
                                     </td>
                                     <td class="py-3 align-middle">
                                         <span class="badge badge-v2 badge-success">Present</span>
@@ -612,65 +640,47 @@ function isLate($check_in_time, $shift_start, $grace_minutes)
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="../assets/js/validation.js"></script>
     <script>
-        function attemptCheckIn() {
+        function attemptCheckIn(type = 'check_in') {
             const checkInBtn = document.querySelector('#checkInForm button');
             const originalContent = checkInBtn.innerHTML;
             
-            // Show loading state
             checkInBtn.disabled = true;
+            const actionText = type === 'check_in' ? 'Checking In...' : 'Checking Out...';
             checkInBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Locating...';
 
-            // Check for HTTPS on non-localhost
-            if (location.protocol !== 'https:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
-                alert('Warning: Geolocation usually requires HTTPS. Please ensure you are using a secure connection (SSL) or the browser may block location access.');
+            const options = { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 };
+
+            function success(position) {
+                document.getElementById('lat').value = position.coords.latitude;
+                document.getElementById('long').value = position.coords.longitude;
+                checkInBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>' + actionText;
+                document.getElementById('checkInForm').submit();
+            }
+
+            function error(err) {
+                console.warn('GPS High Accuracy failed, retrying...', err.message);
+                navigator.geolocation.getCurrentPosition(success, (err2) => {
+                    let errorMsg = "Unable to retrieve your location.";
+                    if(err2.code == 1) errorMsg = "Location permission denied. Please enable GPS.";
+                    else if(err2.code == 2) errorMsg = "Location unavailable. Please check your signal.";
+                    else if(err2.code == 3) errorMsg = "Location request timed out.";
+
+                    if(confirm(errorMsg + "\n\nDo you want to proceed without location data?")) {
+                         checkInBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>' + actionText;
+                         document.getElementById('checkInForm').submit();
+                    } else {
+                         checkInBtn.innerHTML = originalContent;
+                         checkInBtn.disabled = false;
+                    }
+                }, { enableHighAccuracy: false, timeout: 5000 });
             }
 
             if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(position => {
-                    document.getElementById('lat').value = position.coords.latitude;
-                    document.getElementById('long').value = position.coords.longitude;
-                    
-                    checkInBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Checking In...';
-                    document.getElementById('checkInForm').submit();
-                }, error => {
-                    let errorMsg = "Location access is required.";
-                    switch(error.code) {
-                        case error.PERMISSION_DENIED:
-                            errorMsg = "Location request was denied.";
-                            break;
-                        case error.POSITION_UNAVAILABLE:
-                            errorMsg = "Location information is unavailable.";
-                            break;
-                        case error.TIMEOUT:
-                            errorMsg = "The request to get user location timed out.";
-                            break;
-                        default:
-                            errorMsg = "An unknown error occurred.";
-                            break;
-                    }
-                    
-                    // Allow fallback check-in if location fails
-                    if(confirm(errorMsg + "\n\nDo you want to check in without location data?")) {
-                         checkInBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Checking In...';
-                         document.getElementById('checkInForm').submit();
-                    } else {
-                        // Reset button
-                        checkInBtn.disabled = false;
-                        checkInBtn.innerHTML = originalContent;
-                    }
-                }, {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 0
-                });
+                navigator.geolocation.getCurrentPosition(success, error, options);
             } else {
-                if(confirm("Geolocation is not supported by this browser.\n\nCheck in anyway?")) {
-                     checkInBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Checking In...';
-                     document.getElementById('checkInForm').submit();
-                } else {
-                    checkInBtn.disabled = false;
-                    checkInBtn.innerHTML = originalContent;
-                }
+                alert("Geolocation is not supported by this browser.");
+                checkInBtn.innerHTML = originalContent;
+                checkInBtn.disabled = false;
             }
         }
     </script>

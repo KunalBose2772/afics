@@ -53,8 +53,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['document'])) {
     $file = $_FILES['document'];
 
     if ($file['error'] === UPLOAD_ERR_OK) {
-        $allowed = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'];
         $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+        
+        // Define allowed extensions based on category
+        $allowed = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'];
+        $is_evidence = in_array($category, ['Hospital Part', 'Patient Part', 'Other Part']);
+        
+        if ($is_evidence) {
+            $allowed = ['jpg', 'jpeg', 'png']; // Evidence must be photos
+        }
         
         if (in_array($ext, $allowed)) {
             $upload_dir = '../uploads/documents/';
@@ -64,8 +71,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['document'])) {
             $file_path = $upload_dir . $file_name;
             
             if (move_uploaded_file($file['tmp_name'], $file_path)) {
-                $lat = $_POST['lat'] ?? null;
-                $lng = $_POST['lng'] ?? null;
+                $lat = (!empty($_POST['lat']) && $_POST['lat'] != '0') ? $_POST['lat'] : null;
+                $lng = (!empty($_POST['lng']) && $_POST['lng'] != '0') ? $_POST['lng'] : null;
                 $stmt = $pdo->prepare("INSERT INTO project_documents (project_id, uploaded_by, file_name, file_path, category, document_type, gps_lat, gps_long) VALUES (?, ?, ?, ?, ?, ?, ?, ?)");
                 if ($stmt->execute([$pid, $_SESSION['user_id'], $file['name'], 'uploads/documents/' . $file_name, $category, $document_type, $lat, $lng])) {
                     $success_message = 'Document uploaded successfully.';
@@ -84,7 +91,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_FILES['document'])) {
                 $error_message = 'Failed to move uploaded file.';
             }
         } else {
-            $error_message = 'Invalid file type.';
+            if ($is_evidence) {
+                $error_message = 'Validation Error: You MUST upload an Image (JPG/PNG) for ' . $category . '. PDFs and Documents are not allowed here.';
+            } else {
+                $error_message = 'Invalid file type. Only PDF, JPG, PNG, and DOC files are allowed.';
+            }
         }
     } else {
         $error_message = 'Error uploading file.';
@@ -167,15 +178,16 @@ $stmt = $pdo->prepare("SELECT pd.*, u.full_name as uploader_name FROM project_do
 $stmt->execute([$pid]);
 $documents = $stmt->fetchAll();
 
-// Fetch counts for validation feedback
-$stmt_counts = $pdo->prepare("SELECT category, COUNT(*) as cnt FROM project_documents WHERE project_id = ? GROUP BY category");
-$stmt_counts->execute([$pid]);
+// Fetch counts for validation feedback (Robust case-insensitive check)
+$pid_int = intval($pid);
+$stmt_counts = $pdo->prepare("SELECT UPPER(TRIM(category)) as cat, COUNT(*) as cnt FROM project_documents WHERE project_id = ? GROUP BY UPPER(TRIM(category))");
+$stmt_counts->execute([$pid_int]);
 $counts_map = $stmt_counts->fetchAll(PDO::FETCH_KEY_PAIR);
 
-$h_req = (strpos($project['scope'], 'Hospital') !== false || $project['scope'] == 'Full Investigation');
-$p_req = (strpos($project['scope'], 'Patient') !== false || $project['scope'] == 'Full Investigation');
-$h_count = $counts_map['Hospital Part'] ?? 0;
-$p_count = $counts_map['Patient Part'] ?? 0;
+$h_req = (stripos($project['scope'], 'Hospital') !== false || stripos($project['scope'], 'Full Investigation') !== false);
+$p_req = (stripos($project['scope'], 'Patient') !== false || stripos($project['scope'], 'Full Investigation') !== false);
+$h_count = $counts_map['HOSPITAL PART'] ?? 0;
+$p_count = $counts_map['PATIENT PART'] ?? 0;
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -279,7 +291,14 @@ $p_count = $counts_map['Patient Part'] ?? 0;
                             <div class="mb-3">
                                 <label class="stat-label mb-1">Select File</label>
                                 <input type="file" name="document" id="document_file" class="form-control input-v2" accept="image/*,application/pdf,.doc,.docx" required>
-                                <small class="text-muted" style="font-size: 0.65rem;">GPS Coordinates will be tagged automatically.</small>
+                            <div class="mb-3 p-2 rounded bg-light border d-flex align-items-center justify-content-between" id="gps_status_container">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="bi bi-geo-alt-fill text-secondary" id="gps_icon"></i>
+                                    <span class="small fw-bold text-muted" id="gps_text">Locating...</span>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-primary py-0" onclick="captureGPS()" style="font-size: 0.7rem;">
+                                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                                </button>
                             </div>
                             <input type="hidden" name="lat" id="gps_lat">
                             <input type="hidden" name="lng" id="gps_lng">
@@ -342,7 +361,7 @@ $p_count = $counts_map['Patient Part'] ?? 0;
                                             </div>
                                             <div class="text-truncate">
                                                 <h6 class="mb-0 fw-bold text-main" style="font-size: 0.95rem;">
-                                                    <a href="../<?= htmlspecialchars($doc['file_path']) ?>" target="_blank" class="text-decoration-none">
+                                                    <a href="view_doc.php?id=<?= $doc['id'] ?>" target="_blank" class="text-decoration-none">
                                                         <?= htmlspecialchars($doc['document_type']) ?>
                                                     </a>
                                                 </h6>
@@ -353,7 +372,7 @@ $p_count = $counts_map['Patient Part'] ?? 0;
                                             </div>
                                         </div>
                                         <div class="d-flex align-items-center gap-3">
-                                            <a href="../<?= htmlspecialchars($doc['file_path']) ?>" download="<?= htmlspecialchars($doc['file_name']) ?>" class="btn btn-link text-primary p-0" title="Download">
+                                            <a href="view_doc.php?id=<?= $doc['id'] ?>" target="_blank" class="btn btn-link text-primary p-0" title="Download">
                                                 <i class="bi bi-download"></i>
                                             </a>
                                             <?php if ($_SESSION['role'] === 'admin' || $_SESSION['role'] === 'super_admin'): ?>
@@ -457,6 +476,23 @@ $p_count = $counts_map['Patient Part'] ?? 0;
             }
         });
 
+        const uploadBtn = document.getElementById('uploadBtn');
+        function updateUploadButton() {
+            const cat = mainGroup.value;
+            const sub = subCategory.value;
+            const isEvidence = (cat === 'Hospital Part' || cat === 'Patient Part' || cat === 'Other Part');
+            const isCritical = (sub.includes('Selfie') || sub.includes('Visit Photo'));
+            const gpsLocked = document.getElementById('gps_lat').value !== "" && document.getElementById('gps_lat').value !== "0";
+
+            if (isEvidence && isCritical && !gpsLocked) {
+                uploadBtn.disabled = true;
+                uploadBtn.innerHTML = '<i class="bi bi-geo-alt-fill me-2"></i>Waiting for GPS...';
+            } else {
+                uploadBtn.disabled = false;
+                uploadBtn.innerHTML = 'Upload Document';
+            }
+        }
+
         subCategory.addEventListener('change', function() {
             const val = this.value;
             docTypeInput.value = this.options[this.selectedIndex].text;
@@ -467,21 +503,59 @@ $p_count = $counts_map['Patient Part'] ?? 0;
                 captureGPS();
             } else {
                 fileInput.removeAttribute('capture');
-                fileInput.setAttribute('accept', 'image/*,application/pdf');
+                fileInput.setAttribute('accept', 'image/*,application/pdf,.doc,.docx');
             }
+            updateUploadButton();
         });
+        mainGroup.addEventListener('change', updateUploadButton);
 
         function captureGPS() {
+            const gpsText = document.getElementById('gps_text');
+            const gpsIcon = document.getElementById('gps_icon');
+            
+            gpsText.textContent = "Fetching...";
+            gpsIcon.className = "bi bi-geo-alt-fill text-warning";
+
+            const options = { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 };
+            
+            function success(position) {
+                document.getElementById('gps_lat').value = position.coords.latitude;
+                document.getElementById('gps_lng').value = position.coords.longitude;
+                gpsText.textContent = "Location Locked";
+                gpsText.className = "small fw-bold text-success";
+                gpsIcon.className = "bi bi-check-circle-fill text-success";
+                updateUploadButton();
+            }
+
+            function error(err) {
+                console.warn('GPS High Accuracy failed, retrying...', err.message);
+                // Fallback to low accuracy
+                navigator.geolocation.getCurrentPosition(success, (err2) => {
+                    gpsText.textContent = "Location Failed";
+                    gpsText.className = "small fw-bold text-danger";
+                    gpsIcon.className = "bi bi-exclamation-triangle-fill text-danger";
+                    updateUploadButton();
+                }, { enableHighAccuracy: false, timeout: 5000 });
+            }
+
             if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(position => {
-                    document.getElementById('gps_lat').value = position.coords.latitude;
-                    document.getElementById('gps_lng').value = position.coords.longitude;
-                }, err => {
-                    console.warn('GPS error:', err.message);
-                }, { enableHighAccuracy: true });
+                navigator.geolocation.getCurrentPosition(success, error, options);
+            } else {
+                gpsText.textContent = "GPS Not Supported";
+                gpsIcon.className = "bi bi-x-circle-fill text-danger";
             }
         }
         captureGPS();
+        
+        // Dynamically change accepted file types based on category
+        mainGroup.addEventListener('change', function() {
+            const val = this.value;
+            if (val === 'Hospital Part' || val === 'Patient Part' || val === 'Other Part') {
+                fileInput.setAttribute('accept', 'image/*');
+            } else {
+                fileInput.setAttribute('accept', 'image/*,application/pdf,.doc,.docx');
+            }
+        });
     </script>
 </body>
 </html>

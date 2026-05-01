@@ -55,7 +55,7 @@ $patient_name = $project['title'] ?? 'Unknown';
 $hospital_name = $project['hospital_name'] ?? 'The Medical Director';
 $hospital_address = nl2br(htmlspecialchars($project['hospital_address'] ?? ''));
 $insurance_co = $project['company_name'];
-$claim_no = $project['claim_number'];
+$claim_no = !empty($project['manual_claim_number']) ? $project['manual_claim_number'] : ($project['claim_number'] ?? 'N/A');
 $doa = $project['doa'] ? date('d-m-Y', strtotime($project['doa'])) : '-';
 $dod = $project['dod'] ? date('d-m-Y', strtotime($project['dod'])) : '-';
 $uhid = $project['uhid'] ?? '-';
@@ -83,13 +83,18 @@ if ($project['assigned_to'] == $curr_user_id) {
     $officer_code = $project['officer_code'] ?: ($project['pt_fo_code'] ?: ($project['hp_fo_code'] ?: ($project['ot_fo_code'] ?: 'N/A')));
 }
 
-// Paths
-$logo_path = "../assets/images/documantraa_logo.png";
-$seal_path = "../assets/images/auth_seal.png";
+// Base64 helper for rendering images inside MS Word export
+function img_base64($path) {
+    $real_path = __DIR__ . '/../' . ltrim($path, './');
+    if (!file_exists($real_path)) return '';
+    $ext = pathinfo($real_path, PATHINFO_EXTENSION);
+    $data = file_get_contents($real_path);
+    return 'data:image/' . $ext . ';base64,' . base64_encode($data);
+}
 
 // Handle Word Export
 if (isset($_GET['export']) && $_GET['export'] === 'doc') {
-    header("Content-Type: application/vnd.ms-word");
+    header("Content-Type: application/msword");
     header("Content-Disposition: attachment; filename=\"Auth_Letter_{$claim_no}.doc\"");
     header("Pragma: no-cache");
     header("Expires: 0");
@@ -244,11 +249,11 @@ if (isset($_GET['export']) && $_GET['export'] === 'doc') {
                             <div style="font-size: 9pt; margin-top: 5px;">
                                 South Zone Head Office, Calicut, Kerala<br>
                                 Reg No: AFICS/KL/2023/8892<br>
-                                Email: support@documantraa.in | Web: www.documantraa.in
+                                Email: support@documantraa.in | Web: www.documantraa.in | www.afics.in
                             </div>
                         </div>
                         <div class="text-end">
-                            <img src="<?= $logo_path ?>" class="header-logo" alt="Logo">
+                            <img src="<?= img_base64('assets/images/documantraa_logo.png') ?>" class="header-logo" alt="Logo" width="180">
                             <div style="font-size: 10pt; font-weight: bold; margin-top: 5px;">Date: <?= date('d/m/Y') ?></div>
                         </div>
                     </div>
@@ -300,7 +305,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'doc') {
                         <!-- Signatures -->
                         <div style="margin-top: 40px; display: flex; justify-content: space-between; align-items: flex-end;">
                             <div>
-                                <img src="<?= $seal_path ?>" class="seal-img" alt="Seal">
+                                <img src="<?= img_base64('assets/images/auth_seal.png') ?>" class="seal-img" alt="Seal" width="100" height="100">
                                 <div style="border-top: 1px solid #000; width: 200px; padding-top: 5px; font-weight: bold;">
                                      Authorized Signatory<br>
                                      <small style="font-weight: normal;">AFICS Investigation Agency</small>

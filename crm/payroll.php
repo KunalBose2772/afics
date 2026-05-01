@@ -141,53 +141,75 @@ if (isset($_POST['generate_payroll'])) {
     $month = (int)$_POST['month'];
     $year = (int)$_POST['year'];
     
-    // Get all eligible users
-    $users = $pdo->query("SELECT * FROM users WHERE base_salary > 0")->fetchAll();
+    // Get all eligible users (those with either a base salary or target points)
+    $users = $pdo->query("SELECT * FROM users WHERE base_salary > 0 OR salary_base > 0")->fetchAll();
     
     $generated_count = 0;
     foreach ($users as $user) {
-        // Calculate Present Days
-        $present_days = $pdo->prepare("SELECT COUNT(*) FROM attendance WHERE user_id = ? AND MONTH(date) = ? AND YEAR(date) = ? AND status = 'Present'");
-        $present_days->execute([$user['id'], $month, $year]);
-        $present_count = $present_days->fetchColumn();
+        $uid = $user['id'];
+
+        // 1. Calculate Attendance
+        $present_stmt = $pdo->prepare("SELECT COUNT(*) FROM attendance WHERE user_id = ? AND MONTH(date) = ? AND YEAR(date) = ? AND status = 'Present'");
+        $present_stmt->execute([$uid, $month, $year]);
+        $present_count = $present_stmt->fetchColumn();
         
-        // Calculate TA from approved field visits
-        $ta_stmt = $pdo->prepare("SELECT SUM(travel_allowance) as total_ta 
-                                   FROM field_visits 
-                                   WHERE user_id = ? 
-                                   AND status = 'Approved' 
-                                   AND MONTH(visit_date) = ? 
-                                   AND YEAR(visit_date) = ?
-                                   AND ta_paid = 0");
-        $ta_stmt->execute([$user['id'], $month, $year]);
-        $ta_result = $ta_stmt->fetch();
-        $total_ta = $ta_result['total_ta'] ?? 0;
+        // 2. Fetch Registry Data (Points, Incentives, Deductions, Manual Salary)
+        $reg_stmt = $pdo->prepare("SELECT entry_type, SUM(amount) as total FROM salary_registry WHERE user_id = ? AND MONTH(entry_date) = ? AND YEAR(entry_date) = ? GROUP BY entry_type");
+        $reg_stmt->execute([$uid, $month, $year]);
+        $registry = $reg_stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         
-        // Simple Pro-rata Calculation (Assuming 30 days)
-        $daily_rate = $user['base_salary'] / 30;
-        $basic_salary = $daily_rate * $present_count;
+        $earned_points = floatval($registry['Point'] ?? 0);
+        $manual_salary = floatval($registry['Salary'] ?? 0);
+        $incentives = floatval($registry['Incentive'] ?? 0);
+        $deductions = floatval($registry['Deduction'] ?? 0);
+        $allowances = floatval($registry['Allowance'] ?? 0);
         
-        // Initial values (can be edited later)
-        $incentives = 0; // Manually set by admin
-        $deductions = 0; // Manually set by admin
-        $advance = 0;
+        // 3. Calculate TA from field visits
+        $ta_stmt = $pdo->prepare("SELECT SUM(travel_allowance) as total_ta FROM field_visits WHERE user_id = ? AND status = 'Approved' AND MONTH(visit_date) = ? AND YEAR(visit_date) = ? AND ta_paid = 0");
+        $ta_stmt->execute([$uid, $month, $year]);
+        $total_ta = floatval($ta_stmt->fetchColumn() ?? 0) + $allowances;
         
-        // Calculate net salary: base + TA + incentives - deductions - advance
-        $net_salary = $basic_salary + $total_ta + $incentives - $deductions - $advance;
+        // 4. Determine Basic Salary
+        if ($manual_salary > 0) {
+            // Priority 1: Manual Salary Entry
+            $basic_salary = $manual_salary;
+        } elseif ($user['staff_type'] == 'Permanent' && $user['target_points'] > 0) {
+            // Priority 2: Point-Based Target Salary (Permanent Staff)
+            // Logic: (Earned / Target) * Base, capped at Base (or let it go higher if incentive?)
+            // User says "130 point 16k Salary"
+            $target = $user['target_points'];
+            $base = $user['salary_base'] ?: 16000;
+            
+            if ($earned_points >= $target) {
+                $basic_salary = $base;
+                // Maybe extra points as incentive?
+                if ($earned_points > $target) {
+                    $extra = $earned_points - $target;
+                    $incentives += ($extra * ($base / $target)); // Pro-rata bonus
+                }
+            } else {
+                $basic_salary = ($earned_points / $target) * $base;
+            }
+        } else {
+            // Priority 3: Standard Attendance-based Salary
+            $daily_rate = $user['base_salary'] / 30;
+            $basic_salary = $daily_rate * $present_count;
+        }
+        
+        $advance = 0; // Advance is usually a deduction already in registry
+        $net_salary = $basic_salary + $total_ta + $incentives - $deductions;
         
         // Check if already generated
         $exists = $pdo->prepare("SELECT id FROM payroll WHERE user_id = ? AND month = ? AND year = ?");
-        $exists->execute([$user['id'], $month, $year]);
+        $exists->execute([$uid, $month, $year]);
         
         if (!$exists->fetchColumn()) {
             $stmt = $pdo->prepare("INSERT INTO payroll (user_id, month, year, basic_salary, travel_allowance, incentives, deductions, advance, net_salary, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Pending')");
-            $stmt->execute([$user['id'], $month, $year, $basic_salary, $total_ta, $incentives, $deductions, $advance, $net_salary]);
+            $stmt->execute([$uid, $month, $year, $basic_salary, $total_ta, $incentives, $deductions, $advance, $net_salary]);
             
             // Mark TAs as paid
-            if ($total_ta > 0) {
-                $mark_ta = $pdo->prepare("UPDATE field_visits SET ta_paid = 1 WHERE user_id = ? AND MONTH(visit_date) = ? AND YEAR(visit_date) = ? AND status = 'Approved' AND ta_paid = 0");
-                $mark_ta->execute([$user['id'], $month, $year]);
-            }
+            $mark_ta = $pdo->prepare("UPDATE field_visits SET ta_paid = 1 WHERE user_id = ? AND MONTH(visit_date) = ? AND YEAR(visit_date) = ? AND status = 'Approved' AND ta_paid = 0");
+            $mark_ta->execute([$uid, $month, $year]);
 
             // Notify Employee
             require_once '../includes/functions.php';
@@ -202,13 +224,11 @@ if (isset($_POST['generate_payroll'])) {
             ]);
             
             $subject = "Payslip Available: $month_name $year";
-            $body = "Your payslip is available.";
-            
+            $body = "Your payslip for $month_name $year is available.";
             if ($template) {
                 $subject = $template['subject'];
                 $body = $template['body'];
             }
-            
             queue_email($pdo, $user['email'], $subject, $body, $_SESSION['user_id']);
             
             $generated_count++;

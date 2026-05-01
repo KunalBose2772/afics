@@ -5,10 +5,17 @@ require_once 'auth.php';
 $pid = intval($_GET['id'] ?? 0);
 if (!$pid) { echo "Invalid ID"; exit; }
 
-$stmt = $pdo->prepare("SELECT p.*, c.company_name as client_name, u.full_name as officer_name
+$stmt = $pdo->prepare("SELECT p.*, c.company_name as client_name, 
+    u.full_name as primary_officer_name,
+    pt.full_name as pt_officer_name,
+    hp.full_name as hp_officer_name,
+    ot.full_name as ot_officer_name
     FROM projects p
     LEFT JOIN clients c ON p.client_id = c.id
     LEFT JOIN users u ON p.assigned_to = u.id
+    LEFT JOIN users pt ON p.pt_fo_id = pt.id
+    LEFT JOIN users hp ON p.hp_fo_id = hp.id
+    LEFT JOIN users ot ON p.other_fo_id = ot.id
     WHERE p.id = ?");
 $stmt->execute([$pid]);
 $project = $stmt->fetch();
@@ -24,7 +31,7 @@ if (!$is_authorized) {
 $s          = get_settings($pdo);
 $tagline    = $s['site_tagline']    ?? 'Claim & Risk Management Services';
 $c_phone    = $s['contact_phone']   ?? '';
-$c_email    = $s['contact_email']   ?? '';
+$c_email     = str_replace('.com', '.in', $s['contact_email'] ?? 'support@documantraa.in');
 $c_addr     = $s['contact_address'] ?? '';
 
 $fmt_date   = fn($f) => !empty($project[$f]) ? date('d/m/Y', strtotime($project[$f])) : 'N/A';
@@ -34,6 +41,9 @@ $doa          = $fmt_dt('doa');
 $dod          = $fmt_dt('dod');
 $assign_date  = $fmt_date('allocation_date') === 'N/A' ? date('d/m/Y') : $fmt_date('allocation_date');
 $report_date  = date('d/m/Y');
+
+// Determine the active officer name
+$active_officer_name = $project['investigator_name'] ?: ($project['primary_officer_name'] ?: ($project['pt_officer_name'] ?: ($project['hp_officer_name'] ?: ($project['ot_officer_name'] ?: 'Authorized Investigator'))));
 
 // Safe field accessor – uppercase display
 $v = function(string $key, string $fb = 'N/A') use ($project): string {
@@ -56,7 +66,7 @@ function img_base64($path) {
 }
 
 if (isset($_GET['export']) && $_GET['export'] === 'doc') {
-    header('Content-Type: application/vnd.ms-word');
+    header('Content-Type: application/msword');
     header('Content-Disposition: attachment; filename="IR_' . $project['claim_number'] . '.doc"');
 }
 ?>
@@ -64,7 +74,7 @@ if (isset($_GET['export']) && $_GET['export'] === 'doc') {
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Investigation Report – <?= htmlspecialchars($project['claim_number'] ?? '') ?></title>
+<title>Investigation Report – <?= htmlspecialchars(!empty($project['manual_claim_number']) ? $project['manual_claim_number'] : ($project['claim_number'] ?? '')) ?></title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
@@ -156,6 +166,32 @@ td{border:1pt solid #e2e8f0;padding:5px 9px;font-size:8.5pt;vertical-align:top;w
   .reco{-webkit-print-color-adjust:exact;print-color-adjust:exact}
   .ftbl th{-webkit-print-color-adjust:exact;print-color-adjust:exact}
 }
+
+/* Floating Download Button for Mobile */
+.floating-download-bar {
+    position: fixed;
+    bottom: 25px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 9999;
+    display: none; /* Only show on mobile */
+}
+@media (max-width: 768px) {
+    .floating-download-bar { display: block; }
+}
+.btn-float {
+    background: linear-gradient(135deg, #3D0C60, #6d28d9);
+    color: #fff;
+    padding: 12px 24px;
+    border-radius: 50px;
+    font-weight: 700;
+    text-decoration: none;
+    box-shadow: 0 10px 20px rgba(61, 12, 96, 0.4);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 2px solid rgba(255,255,255,0.1);
+}
 </style>
 </head>
 <body>
@@ -171,7 +207,7 @@ td{border:1pt solid #e2e8f0;padding:5px 9px;font-size:8.5pt;vertical-align:top;w
   <a class="btn btn-d" href="investigation_report.php?id=<?= $pid ?>&export=doc">
     <svg width="15" height="15" fill="currentColor" viewBox="0 0 16 16">
       <path d="M14 4.5V14a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V2a2 2 0 0 1 2-2h5.5L14 4.5zm-3 0A1.5 1.5 0 0 1 9.5 3V1H4a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4.5h-2z"/>
-    </svg>Download DOC
+    </svg>Download Word
   </a>
   <a class="btn btn-b" href="projects.php">&#8592; Back</a>
 </div>
@@ -181,11 +217,11 @@ td{border:1pt solid #e2e8f0;padding:5px 9px;font-size:8.5pt;vertical-align:top;w
 
 <!-- ═══ HEADER ═══ -->
 <div class="hdr">
-  <img class="hdr-logo" src="<?= img_base64('assets/images/documantraa_logo.png') ?>" alt="Documantraa">
+  <img class="hdr-logo" src="<?= img_base64('assets/images/documantraa_logo.png') ?>" alt="Documantraa" width="180">
   <div class="hdr-right">
     <h1>Investigation Report</h1>
     <div class="hdr-tagline" style="text-transform:uppercase;letter-spacing:0.1em;font-size:7pt;color:#64748b;font-weight:700">CLAIM NUMBER</div>
-    <div class="hdr-conf" style="font-size:10.5pt;color:#0f172a;font-weight:800;letter-spacing:0.05em;margin-top:2px;font-family:monospace"><?= htmlspecialchars($project['claim_number'] ?? 'N/A') ?></div>
+    <div class="hdr-conf" style="font-size:10.5pt;color:#0f172a;font-weight:800;letter-spacing:0.05em;margin-top:2px;font-family:monospace"><?= htmlspecialchars(!empty($project['manual_claim_number']) ? $project['manual_claim_number'] : ($project['claim_number'] ?? 'N/A')) ?></div>
   </div>
 </div>
 
@@ -195,7 +231,7 @@ td{border:1pt solid #e2e8f0;padding:5px 9px;font-size:8.5pt;vertical-align:top;w
   <tr><td class="lbl">Name of the Insured</td>                 <td class="val"><?= $v('title') ?></td></tr>
   <tr><td class="lbl">Type of Claim</td>                       <td class="val"><?= $v('claim_type') ?></td></tr>
   <tr><td class="lbl">Hospital Name</td>                       <td class="val"><?= $v('hospital_name') ?></td></tr>
-  <tr><td class="lbl">Claim Number</td>                        <td class="val"><?= $v('claim_number') ?></td></tr>
+  <tr><td class="lbl">Claim Number</td>                        <td class="val"><?= htmlspecialchars(strtoupper(!empty($project['manual_claim_number']) ? $project['manual_claim_number'] : ($project['claim_number'] ?? 'N/A')), ENT_QUOTES) ?></td></tr>
   <tr><td class="lbl">Claimed Amount</td>                      <td class="val">Rs. <?= number_format((float)($project['claim_amount']??0),0) ?>/-</td></tr>
   <tr><td class="lbl">Location</td>                            <td class="val"><?= $v('hospital_address') ?></td></tr>
   <tr><td class="lbl">Date of Investigation Assigned</td>      <td class="val"><?= $assign_date ?></td></tr>
@@ -342,9 +378,8 @@ td{border:1pt solid #e2e8f0;padding:5px 9px;font-size:8.5pt;vertical-align:top;w
   <?= !empty($project['admission_genuinely']) ? strtoupper(htmlspecialchars($project['admission_genuinely'])) : 'GENUINE' ?>
 </div>
 
-<!-- ═══ FOOTER / SIGNATURE ═══ -->
+<!-- FOOTER / SIGNATURE -->
 <div class="footer-wrap">
-  <img class="footer-wm" src="<?= img_base64('assets/images/auth_seal.png') ?>" alt="">
   <table class="ftbl">
     <thead>
       <tr><th colspan="3">Report Prepared By</th></tr>
@@ -353,7 +388,7 @@ td{border:1pt solid #e2e8f0;padding:5px 9px;font-size:8.5pt;vertical-align:top;w
       <tr>
         <td>
           <span class="flbl">Name</span>
-          <div class="fval"><?= htmlspecialchars($project['officer_name'] ?? 'Authorized Investigator') ?></div>
+          <div class="fval"><?= htmlspecialchars($active_officer_name) ?></div>
         </td>
         <td>
           <span class="flbl">Designation</span>
@@ -367,12 +402,12 @@ td{border:1pt solid #e2e8f0;padding:5px 9px;font-size:8.5pt;vertical-align:top;w
       <tr>
         <td>
           <span class="flbl">Email</span>
-          <div class="fval" style="text-transform:lowercase"><?= htmlspecialchars($project['investigator_email'] ?? $c_email ?: '—') ?></div>
+          <div class="fval" style="text-transform:lowercase"><?= htmlspecialchars($project['investigator_email'] ?: $c_email) ?></div>
         </td>
         <td colspan="2">
           <span class="flbl">Agency Stamp &amp; Signature</span>
           <div class="sig-area">
-            <img src="<?= img_base64('assets/images/auth_seal.png') ?>" alt="Seal" style="height:40px;opacity:.85">
+            <img src="<?= img_base64('assets/images/auth_seal.png') ?>" alt="Seal" width="100" height="100" style="opacity:.85">
             <span class="sig-name"><?= htmlspecialchars($project['officer_name'] ?? 'Investigator') ?></span>
           </div>
         </td>
@@ -388,7 +423,7 @@ td{border:1pt solid #e2e8f0;padding:5px 9px;font-size:8.5pt;vertical-align:top;w
         </td>
         <td>
           <span class="flbl">Report / Claim No.</span>
-          <div class="fval"><?= htmlspecialchars($project['claim_number'] ?? '') ?></div>
+          <div class="fval"><?= htmlspecialchars(!empty($project['manual_claim_number']) ? $project['manual_claim_number'] : ($project['claim_number'] ?? '')) ?></div>
         </td>
       </tr>
     </tbody>
@@ -396,5 +431,15 @@ td{border:1pt solid #e2e8f0;padding:5px 9px;font-size:8.5pt;vertical-align:top;w
 </div>
 
 </div><!-- .page -->
+
+<?php if (!isset($_GET['export'])): ?>
+<div class="floating-download-bar no-print">
+  <a href="investigation_report.php?id=<?= $pid ?>&export=doc" class="btn-float">
+    <i class="bi bi-cloud-arrow-down-fill" style="font-size:1.2rem"></i>
+    DOWNLOAD WORD
+  </a>
+</div>
+<?php endif; ?>
+
 </body>
 </html>

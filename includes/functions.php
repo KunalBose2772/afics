@@ -235,8 +235,8 @@ function queue_email($pdo, $to, $subject, $body, $from_user_id = null, $attachme
     // Insert into Queue first (Log)
     try {
         $files_json = !empty($attachments) ? json_encode($attachments) : null;
-        $stmt = $pdo->prepare("INSERT INTO email_queue (to_email, subject, body, user_id, attachments, status, created_at) VALUES (?, ?, ?, ?, ?, 'pending', NOW())");
-        $stmt->execute([$to, $subject, $body, $from_user_id, $files_json]);
+        $stmt = $pdo->prepare("INSERT INTO email_queue (to_email, subject, body, user_id, attachments, status, created_at) VALUES (?, ?, ?, ?, ?, 'pending', ?)");
+        $stmt->execute([$to, $subject, $body, $from_user_id, $files_json, date('Y-m-d H:i:s')]);
         $queue_id = $pdo->lastInsertId();
     } catch (PDOException $e) {
         error_log("DB Queue Error: " . $e->getMessage());
@@ -251,10 +251,12 @@ function queue_email($pdo, $to, $subject, $body, $from_user_id = null, $attachme
         $s_stmt = $pdo->query("SELECT setting_key, setting_value FROM settings WHERE setting_key LIKE 'smtp_%'");
         $settings = $s_stmt->fetchAll(PDO::FETCH_KEY_PAIR);
         
-        $host = $settings['smtp_host'] ?? 'smtp.hostinger.com';
-        $user = $settings['smtp_username'] ?? ($settings['smtp_user'] ?? 'info@documantraa.in');
-        $pass = $settings['smtp_password'] ?? ($settings['smtp_pass'] ?? 'l]l$+954F');
-        $port = intval($settings['smtp_port'] ?? 465); 
+        // Hard production override to prevent live DB/config drift issues.
+        $host = 'smtp.hostinger.com';
+        $user = 'info@documantraa.in';
+        $pass = 'Admin123@documantraa.in';
+        $port = 587;
+        $encryption = 'tls';
     } catch (Exception $e) {
         return true; // Queued but settings failed?
     }
@@ -264,26 +266,82 @@ function queue_email($pdo, $to, $subject, $body, $from_user_id = null, $attachme
     require_once __DIR__ . '/../lib/phpmailer/src/PHPMailer.php';
     require_once __DIR__ . '/../lib/phpmailer/src/SMTP.php';
 
-    $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+    $mail = null;
+    $last_error = '';
 
     try {
-        // Use PHP's built-in mail() instead of SMTP (SMTP port 465 is blocked by host firewall)
-        $mail->isMail();
+        $candidate_hosts = array_values(array_unique(array_filter([
+            $host,
+            'smtp.hostinger.com'
+        ])));
 
-        // Sender
-        $from_address = 'noreply@documantraa.in';
-        $mail->setFrom($from_address, 'AFICS DOCUMANTRAA');
-        $mail->addReplyTo($from_address, 'AFICS DOCUMANTRAA');
-        $mail->addAddress($to);
+        // Build route candidates so one blocked endpoint doesn't fail all sends.
+        $smtp_routes = [];
+        foreach ($candidate_hosts as $h) {
+            if ($encryption === 'ssl' || $port === 465) {
+                $smtp_routes[] = ['host' => $h, 'port' => 465, 'secure' => PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS];
+                $smtp_routes[] = ['host' => $h, 'port' => 587, 'secure' => PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS];
+            } else {
+                $smtp_routes[] = ['host' => $h, 'port' => 587, 'secure' => PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_STARTTLS];
+                $smtp_routes[] = ['host' => $h, 'port' => 465, 'secure' => PHPMailer\PHPMailer\PHPMailer::ENCRYPTION_SMTPS];
+            }
+        }
 
-        // Content
-        $is_html_body = (strpos($body, '<div') !== false || strpos($body, '<table') !== false || strpos($body, '<html') !== false);
-        $mail->isHTML(true);
-        $mail->Subject = $subject;
-        $mail->Body    = $is_html_body ? $body : nl2br($body);
-        $mail->AltBody = strip_tags($body);
+        $smtp_routes = array_slice($smtp_routes, 0, 4); // Keep retries bounded.
 
-        $mail->send();
+        foreach ($smtp_routes as $route) {
+            try {
+                $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+                $mail->isSMTP();
+                $mail->Host       = $route['host'];
+                $mail->SMTPAuth   = true;
+                $mail->Username   = $user;
+                $mail->Password   = $pass;
+                $mail->SMTPSecure = $route['secure'];
+                $mail->Port       = (int)$route['port'];
+                $mail->Timeout    = 15;
+
+                // Sender
+                $mail->setFrom($user, 'AFICS DOCUMANTRAA');
+                $mail->addReplyTo($user, 'AFICS DOCUMANTRAA');
+                $mail->addAddress($to);
+
+                // Content
+                $is_html_body = (strpos($body, '<div') !== false || strpos($body, '<table') !== false || strpos($body, '<html') !== false);
+                $mail->isHTML(true);
+                $mail->Subject = $subject;
+                $mail->Body    = $is_html_body ? $body : nl2br($body);
+                $mail->AltBody = strip_tags($body);
+
+                $mail->send();
+                $last_error = '';
+                break;
+            } catch (Exception $route_error) {
+                $last_error = $route_error->getMessage() . " | PHPMailer: " . ($mail ? $mail->ErrorInfo : '');
+                $mail = null;
+            }
+        }
+
+        if ($mail === null) {
+            // Final fallback: try local mail transport so operations continue
+            // even when SMTP credentials are temporarily invalid.
+            try {
+                $mail = new PHPMailer\PHPMailer\PHPMailer(true);
+                $mail->isMail();
+                $mail->setFrom($user, 'AFICS DOCUMANTRAA');
+                $mail->addReplyTo($user, 'AFICS DOCUMANTRAA');
+                $mail->addAddress($to);
+                $is_html_body = (strpos($body, '<div') !== false || strpos($body, '<table') !== false || strpos($body, '<html') !== false);
+                $mail->isHTML(true);
+                $mail->Subject = $subject;
+                $mail->Body    = $is_html_body ? $body : nl2br($body);
+                $mail->AltBody = strip_tags($body);
+                $mail->send();
+                $last_error = '';
+            } catch (Exception $mail_fallback_error) {
+                throw new Exception($last_error !== '' ? $last_error : $mail_fallback_error->getMessage());
+            }
+        }
         
         // Reconnect if lost during send process
         try { @$pdo->query("SELECT 1"); } catch (Exception $ex) { require dirname(__DIR__) . '/config/db.php'; }
@@ -298,9 +356,10 @@ function queue_email($pdo, $to, $subject, $body, $from_user_id = null, $attachme
         // Reconnect before updating status
         try { @$pdo->query("SELECT 1"); } catch (Exception $ex) { require dirname(__DIR__) . '/config/db.php'; }
         
-        $full_error = $e->getMessage() . " | PHPMailer: " . $mail->ErrorInfo;
+        $mailer_error = ($mail && !empty($mail->ErrorInfo)) ? $mail->ErrorInfo : '';
+        $full_error = "Error: " . $e->getMessage() . ($mailer_error ? " | PHPMailer: " . $mailer_error : '');
         $upd = $pdo->prepare("UPDATE email_queue SET status = 'failed', error_message = ?, updated_at = NOW() WHERE id = ?");
-        $upd->execute([substr($full_error, 0, 255), $queue_id]);
+        $upd->execute([$full_error, $queue_id]);
         return false;
     }
 }
