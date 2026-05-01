@@ -119,10 +119,9 @@ if (!$is_admin_view) {
 
             <h2 style="font-size: 1rem; font-weight: 600; margin-bottom: 16px;">Quick Actions</h2>
             <div class="action-scroll mb-4">
-                <a href="#" class="btn-v2 btn-primary-v2 text-decoration-none"><i class="bi bi-camera"></i> Quick Snap</a>
-                <a href="attendance.php" class="btn-v2 btn-white-v2 text-decoration-none"><i class="bi bi-geo-alt"></i> Check-In</a>
-                <a href="#" class="btn-v2 btn-white-v2 text-decoration-none"><i class="bi bi-qr-code-scan"></i> Scan QR</a>
-                <a href="#" class="btn-v2 btn-white-v2 text-decoration-none"><i class="bi bi-telephone"></i> Support</a>
+                <a href="attendance.php" class="btn-v2 btn-white-v2 text-decoration-none"><i class="bi bi-geo-alt"></i> Check-In / Check-Out</a>
+                <a href="projects.php" class="btn-v2 btn-primary-v2 text-decoration-none"><i class="bi bi-folder2-open"></i> My Claims</a>
+                <a href="mailto:support@documantraa.in" class="btn-v2 btn-white-v2 text-decoration-none"><i class="bi bi-telephone"></i> Support</a>
             </div>
 
             <div class="d-flex justify-content-between align-items-center mb-3">

@@ -26,7 +26,9 @@ $stmt = $pdo->prepare("
         a.check_out_time, 
         a.status,
         a.check_in_latitude,
-        a.check_in_longitude
+        a.check_in_longitude,
+        a.check_out_latitude,
+        a.check_out_longitude
     FROM attendance a 
     JOIN users u ON a.user_id = u.id 
     WHERE a.date BETWEEN ? AND ? 
@@ -42,7 +44,7 @@ header('Content-Disposition: attachment; filename="attendance_export_' . $month 
 $output = fopen('php://output', 'w');
 
 // Add CSV Header
-fputcsv($output, ['Employee Name', 'Employee ID', 'Role', 'Date', 'Check In', 'Check Out', 'Status', 'Latitude', 'Longitude']);
+fputcsv($output, ['Employee Name', 'Employee ID', 'Role', 'Date', 'Check In', 'Check Out', 'Status', 'In Latitude', 'In Longitude', 'Out Latitude', 'Out Longitude']);
 
 // Add Rows
 foreach ($records as $row) {
@@ -55,7 +57,9 @@ foreach ($records as $row) {
         $row['check_out_time'] ? date('h:i A', strtotime($row['check_out_time'])) : '-',
         $row['status'],
         $row['check_in_latitude'],
-        $row['check_in_longitude']
+        $row['check_in_longitude'],
+        $row['check_out_latitude'],
+        $row['check_out_longitude']
     ]);
 }
 

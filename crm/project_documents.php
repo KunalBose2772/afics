@@ -512,37 +512,71 @@ $p_count = $counts_map['PATIENT PART'] ?? 0;
         function captureGPS() {
             const gpsText = document.getElementById('gps_text');
             const gpsIcon = document.getElementById('gps_icon');
+            const latInput = document.getElementById('gps_lat');
+            const lngInput = document.getElementById('gps_lng');
             
-            gpsText.textContent = "Fetching...";
-            gpsIcon.className = "bi bi-geo-alt-fill text-warning";
+            gpsText.textContent = "Locating...";
+            gpsText.className = "small fw-bold text-warning";
+            gpsIcon.className = "bi bi-geo-alt-fill text-warning animate-pulse";
 
-            const options = { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 };
+            // Options for High Accuracy (Satellite)
+            const highAccuracyOptions = { 
+                enableHighAccuracy: true, 
+                timeout: 10000, 
+                maximumAge: 0 
+            };
             
+            // Options for Low Accuracy (Network/WiFi)
+            const lowAccuracyOptions = { 
+                enableHighAccuracy: false, 
+                timeout: 10000, 
+                maximumAge: 30000 
+            };
+
             function success(position) {
-                document.getElementById('gps_lat').value = position.coords.latitude;
-                document.getElementById('gps_lng').value = position.coords.longitude;
+                latInput.value = position.coords.latitude;
+                lngInput.value = position.coords.longitude;
                 gpsText.textContent = "Location Locked";
                 gpsText.className = "small fw-bold text-success";
                 gpsIcon.className = "bi bi-check-circle-fill text-success";
+                gpsIcon.classList.remove('animate-pulse');
                 updateUploadButton();
             }
 
             function error(err) {
-                console.warn('GPS High Accuracy failed, retrying...', err.message);
-                // Fallback to low accuracy
-                navigator.geolocation.getCurrentPosition(success, (err2) => {
-                    gpsText.textContent = "Location Failed";
+                console.warn('GPS Error (' + err.code + '): ' + err.message);
+                
+                if (err.code === 1) { // PERMISSION_DENIED
+                    gpsText.textContent = "Permission Denied";
                     gpsText.className = "small fw-bold text-danger";
-                    gpsIcon.className = "bi bi-exclamation-triangle-fill text-danger";
-                    updateUploadButton();
-                }, { enableHighAccuracy: false, timeout: 5000 });
+                    gpsIcon.className = "bi bi-shield-lock-fill text-danger";
+                    gpsIcon.classList.remove('animate-pulse');
+                    alert("Please enable location permissions for this site in your browser settings to upload evidence.");
+                } else {
+                    // Try low accuracy as fallback (Network based)
+                    gpsText.textContent = "Retrying (Network)...";
+                    navigator.geolocation.getCurrentPosition(success, (err2) => {
+                        gpsText.textContent = "Location Failed";
+                        gpsText.className = "small fw-bold text-danger";
+                        gpsIcon.className = "bi bi-exclamation-triangle-fill text-danger";
+                        gpsIcon.classList.remove('animate-pulse');
+                        updateUploadButton();
+                        
+                        let msg = "Could not get your location.";
+                        if (err2.code === 3) msg = "Location request timed out. Please check your internet/GPS signal.";
+                        else if (err2.code === 2) msg = "Location unavailable. Try moving to an open area.";
+                        
+                        console.error("Final GPS Failure:", msg);
+                    }, lowAccuracyOptions);
+                }
             }
 
             if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(success, error, options);
+                navigator.geolocation.getCurrentPosition(success, error, highAccuracyOptions);
             } else {
                 gpsText.textContent = "GPS Not Supported";
                 gpsIcon.className = "bi bi-x-circle-fill text-danger";
+                gpsIcon.classList.remove('animate-pulse');
             }
         }
         captureGPS();

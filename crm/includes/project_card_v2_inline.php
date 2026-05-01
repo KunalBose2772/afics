@@ -188,6 +188,9 @@ $fine_status = ($project['is_fine_confirmed'] ?? 0) ? 'Confirmed' : 'Calculated'
                                data-conclusion="<?= htmlspecialchars($project['closure_conclusion'] ?? '') ?>" 
                                data-ctype="<?= htmlspecialchars($project['claim_type'] ?? 'REIMBURSEMENT') ?>" 
                                data-desc="<?= htmlspecialchars($project['description'] ?? '') ?>"
+                               data-price-hosp="<?= $project['price_hospital'] ?? '0' ?>"
+                               data-price-pt="<?= $project['price_patient'] ?? '0' ?>"
+                               data-price-other="<?= $project['price_other'] ?? '0' ?>"
                                data-complaints="<?= htmlspecialchars($project['main_complaints'] ?? '') ?>"><i class="bi bi-pencil me-2"></i> Edit</a></li>
                         <?php endif; ?>
                     </ul>

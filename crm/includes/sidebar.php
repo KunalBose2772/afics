@@ -183,14 +183,16 @@ if (!function_exists('render_sidebar_items')) {
                     data.append('acc', position.coords.accuracy);
                     
                     fetch('ajax/update_location.php', { method: 'POST', body: data });
-                }, null, { enableHighAccuracy: true });
+                }, (err) => {
+                    console.warn("Background GPS failed:", err.message);
+                }, { enableHighAccuracy: false, timeout: 15000, maximumAge: 60000 });
             }
             updateLocation();
             setInterval(updateLocation, 5 * 60 * 1000);
         }
     })();
 
-    // Universal Download Feedback System
+    // Universal Document Viewer System
     (function() {
         function showToast(message) {
             let container = document.getElementById('toastContainer');
@@ -204,23 +206,19 @@ if (!function_exists('render_sidebar_items')) {
             const toast = document.createElement('div');
             toast.className = 'toast';
             toast.style.display = 'flex';
+            toast.style.alignItems = 'center';
             toast.style.opacity = '1';
-            toast.innerHTML = `<i class="bi bi-cloud-arrow-down-fill me-2 text-primary"></i> <span>${message}</span>`;
+            toast.innerHTML = `<i class="bi bi-file-earmark-text-fill me-2 text-primary"></i> <span>${message}</span>`;
             container.appendChild(toast);
             
-            // Auto-remove after 3 seconds and show completion
             setTimeout(() => {
-                toast.innerHTML = `<i class="bi bi-check-circle-fill me-2 text-success"></i> <span>Download completed</span>`;
-                setTimeout(() => {
-                    toast.style.opacity = '0';
-                    toast.style.transform = 'translateX(100%)';
-                    toast.style.transition = 'all 0.4s ease';
-                    setTimeout(() => toast.remove(), 400);
-                }, 2000);
+                toast.style.opacity = '0';
+                toast.style.transform = 'translateX(100%)';
+                toast.style.transition = 'all 0.4s ease';
+                setTimeout(() => toast.remove(), 400);
             }, 3000);
         }
 
-        // Global click listener for downloads
         document.addEventListener('click', function(e) {
             const link = e.target.closest('a');
             if (!link) return;
@@ -231,11 +229,76 @@ if (!function_exists('render_sidebar_items')) {
                                href.includes('report.php') || 
                                href.includes('export') || 
                                href.includes('download') ||
-                               href.includes('pdf');
+                               href.includes('.pdf') ||
+                               href.includes('.jpg') ||
+                               href.includes('.png');
 
-            if (isDownload) {
-                showToast('Starting download...');
+            if (isDownload && !href.startsWith('mailto:') && !href.startsWith('tel:') && href !== '#') {
+                e.preventDefault();
+                showToast('Opening document...');
+                
+                // Convert relative href to absolute URL
+                const tempA = document.createElement('a');
+                tempA.href = href;
+                const absoluteUrl = tempA.href;
+
+                // Open in a new tab/window
+                const newWin = window.open(absoluteUrl, '_blank');
+                if (newWin) {
+                    newWin.focus();
+                } else {
+                    // Fallback if popup blocker or webview blocks window.open
+                    window.location.href = absoluteUrl;
+                }
             }
         }, true);
+    })();
+
+    // Global Form Submission Button Feedback (For App/WebView)
+    (function() {
+        document.addEventListener('submit', function(e) {
+            const form = e.target;
+            const btn = form.querySelector('button[type="submit"], input[type="submit"]');
+            
+            if (btn && !btn.hasAttribute('data-no-loading')) {
+                // Check if form contains a file input with a selected file
+                const fileInputs = form.querySelectorAll('input[type="file"]');
+                let isUploading = false;
+                fileInputs.forEach(input => {
+                    if (input.files && input.files.length > 0) isUploading = true;
+                });
+                
+                const loadingText = isUploading ? 'Uploading...' : 'Processing...';
+                const spinner = `<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>`;
+                
+                if (btn.tagName.toLowerCase() === 'input') {
+                    btn.value = loadingText;
+                } else {
+                    // Keep the icon if it exists, replace text
+                    btn.innerHTML = spinner + loadingText;
+                }
+                
+                // Disable button slightly after to ensure form submission proceeds
+                setTimeout(() => {
+                    btn.disabled = true;
+                    btn.style.opacity = '0.8';
+                    btn.style.cursor = 'wait';
+                }, 10);
+                
+                // Failsafe: re-enable after 15 seconds if page doesn't reload (e.g., target="_blank" or error)
+                setTimeout(() => {
+                    if (btn.disabled) {
+                        btn.disabled = false;
+                        btn.style.opacity = '1';
+                        btn.style.cursor = 'pointer';
+                        if (btn.tagName.toLowerCase() === 'input') {
+                            btn.value = 'Submit';
+                        } else {
+                            btn.innerHTML = 'Action Complete';
+                        }
+                    }
+                }, 15000);
+            }
+        });
     })();
 </script>

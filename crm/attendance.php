@@ -648,7 +648,8 @@ function isLate($check_in_time, $shift_start, $grace_minutes)
             const actionText = type === 'check_in' ? 'Checking In...' : 'Checking Out...';
             checkInBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Locating...';
 
-            const options = { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 };
+            const highAccuracyOptions = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
+            const lowAccuracyOptions = { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 };
 
             function success(position) {
                 document.getElementById('lat').value = position.coords.latitude;
@@ -658,10 +659,12 @@ function isLate($check_in_time, $shift_start, $grace_minutes)
             }
 
             function error(err) {
-                console.warn('GPS High Accuracy failed, retrying...', err.message);
+                console.warn('GPS High Accuracy failed, retrying network location...', err.message);
+                
+                // Fallback to low accuracy
                 navigator.geolocation.getCurrentPosition(success, (err2) => {
                     let errorMsg = "Unable to retrieve your location.";
-                    if(err2.code == 1) errorMsg = "Location permission denied. Please enable GPS.";
+                    if(err2.code == 1) errorMsg = "Location permission denied. Please enable GPS in browser settings.";
                     else if(err2.code == 2) errorMsg = "Location unavailable. Please check your signal.";
                     else if(err2.code == 3) errorMsg = "Location request timed out.";
 
@@ -672,11 +675,11 @@ function isLate($check_in_time, $shift_start, $grace_minutes)
                          checkInBtn.innerHTML = originalContent;
                          checkInBtn.disabled = false;
                     }
-                }, { enableHighAccuracy: false, timeout: 5000 });
+                }, lowAccuracyOptions);
             }
 
             if (navigator.geolocation) {
-                navigator.geolocation.getCurrentPosition(success, error, options);
+                navigator.geolocation.getCurrentPosition(success, error, highAccuracyOptions);
             } else {
                 alert("Geolocation is not supported by this browser.");
                 checkInBtn.innerHTML = originalContent;

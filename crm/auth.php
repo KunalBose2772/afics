@@ -23,7 +23,9 @@ function has_permission($module)
     $hardcoded_access = [
         'doctor' => ['projects', 'clients', 'attendance', 'leaves'],
         'incharge' => ['projects', 'clients', 'attendance', 'leaves'],
-        'hod' => ['projects', 'clients', 'users', 'payroll', 'attendance', 'leaves']
+        'hod' => ['projects', 'clients', 'users', 'payroll', 'attendance', 'leaves'],
+        'manager' => ['projects', 'clients', 'attendance', 'leaves'],
+        'team_manager' => ['projects', 'clients', 'attendance', 'leaves']
     ];
     if (isset($hardcoded_access[$_SESSION['role']]) && in_array($module, $hardcoded_access[$_SESSION['role']])) {
         return true;
@@ -72,10 +74,28 @@ function log_action($action, $details = null)
     }
 }
 
-// Basic login check
+// Basic login check with Remember Me support
 if (!isset($_SESSION['user_id'])) {
-    header('Location: login.php');
-    exit;
+    if (isset($_COOKIE['remember_me'])) {
+        $token = $_COOKIE['remember_me'];
+        $stmt = $pdo->prepare("SELECT id, role, full_name FROM users WHERE remember_token = ? AND remember_token IS NOT NULL");
+        $stmt->execute([$token]);
+        $user = $stmt->fetch();
+
+        if ($user) {
+            $_SESSION['user_id'] = $user['id'];
+            $_SESSION['role'] = $user['role'];
+            $_SESSION['full_name'] = $user['full_name'];
+        } else {
+            // Invalid token, clear cookie
+            setcookie('remember_me', '', time() - 3600, '/');
+            header('Location: login.php');
+            exit;
+        }
+    } else {
+        header('Location: login.php');
+        exit;
+    }
 }
 
 // Agreement Enforcement

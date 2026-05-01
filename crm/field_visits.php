@@ -387,9 +387,16 @@ try {
     <script>
         function getLocation(callback) {
             if (navigator.geolocation) {
+                const highAccuracyOptions = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
+                const lowAccuracyOptions = { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 };
+
                 navigator.geolocation.getCurrentPosition(callback, function (error) {
-                    alert('Error getting location: ' + error.message);
-                }, { enableHighAccuracy: true, timeout: 10000 });
+                    console.warn('GPS High Accuracy failed, retrying network location...', error.message);
+                    // Fallback to low accuracy
+                    navigator.geolocation.getCurrentPosition(callback, function (error2) {
+                        alert('Error getting location: ' + error2.message);
+                    }, lowAccuracyOptions);
+                }, highAccuracyOptions);
             } else {
                 alert('Geolocation is not supported by this browser.');
             }

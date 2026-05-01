@@ -450,31 +450,46 @@ $completed_mrd = $pdo->query("SELECT * FROM projects WHERE mrd_status = 'Verifie
             if (navigator.geolocation) {
                 if(submitBtn) submitBtn.disabled = true;
 
-                navigator.geolocation.watchPosition(
-                    (position) => {
-                        currentLat = position.coords.latitude;
-                        currentLong = position.coords.longitude;
-                        
-                        // Inject into main form
-                        const latInput = document.getElementById('lat_req');
-                        const longInput = document.getElementById('long_req');
-                        if(latInput) latInput.value = currentLat;
-                        if(longInput) longInput.value = currentLong;
-                        
-                        // Inject into modal forms
-                        document.querySelectorAll('.gps-lat-receipt').forEach(el => el.value = currentLat);
-                        document.querySelectorAll('.gps-long-receipt').forEach(el => el.value = currentLong);
+                const highAccuracyOptions = { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 };
+                const lowAccuracyOptions = { enableHighAccuracy: false, timeout: 10000, maximumAge: 30000 };
 
-                        if(statusEl) {
-                            statusEl.innerHTML = '<i class="bi bi-geo-alt-fill text-success"></i> <span class="text-success fw-bold">GPS Locked</span>';
-                        }
-                        if(submitBtn) submitBtn.disabled = false;
-                    },
-                    (error) => {
-                        if(statusEl) statusEl.innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-triangle"></i> GPS Denied</span>';
-                    },
-                    { enableHighAccuracy: true }
-                );
+                function success(position) {
+                    currentLat = position.coords.latitude;
+                    currentLong = position.coords.longitude;
+                    
+                    // Inject into main form
+                    const latInput = document.getElementById('lat_req');
+                    const longInput = document.getElementById('long_req');
+                    if(latInput) latInput.value = currentLat;
+                    if(longInput) longInput.value = currentLong;
+                    
+                    // Inject into modal forms
+                    document.querySelectorAll('.gps-lat-receipt').forEach(el => el.value = currentLat);
+                    document.querySelectorAll('.gps-long-receipt').forEach(el => el.value = currentLong);
+
+                    if(statusEl) {
+                        statusEl.innerHTML = '<i class="bi bi-geo-alt-fill text-success animate-pulse"></i> <span class="text-success fw-bold">GPS Locked</span>';
+                    }
+                    if(submitBtn) submitBtn.disabled = false;
+                }
+
+                function error(err) {
+                    console.warn('GPS Error (' + err.code + '): ' + err.message);
+                    if (err.code === 1) {
+                         if(statusEl) statusEl.innerHTML = '<span class="text-danger"><i class="bi bi-shield-lock-fill"></i> Permission Denied</span>';
+                    } else {
+                         // Fallback to low accuracy
+                         navigator.geolocation.getCurrentPosition(success, (err2) => {
+                             if(statusEl) statusEl.innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-triangle"></i> Location Failed</span>';
+                         }, lowAccuracyOptions);
+                    }
+                }
+
+                // Initial lock
+                navigator.geolocation.getCurrentPosition(success, error, highAccuracyOptions);
+                
+                // Continuous watch
+                navigator.geolocation.watchPosition(success, (err) => console.warn("Watch error:", err.message), { enableHighAccuracy: false });
             } else {
                 if(statusEl) statusEl.innerHTML = '<span class="text-danger">GPS Not Supported</span>';
             }
