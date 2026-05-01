@@ -1,6 +1,7 @@
 <?php
 require_once 'app_init.php';
 require_once 'auth.php';
+// V3_STABLE_LAYOUT_RESTORED
 
 $pid = $_GET['id'] ?? 0;
 if ($pid == 0) {
@@ -198,9 +199,9 @@ $p_count = $counts_map['PATIENT PART'] ?? 0;
     <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&family=Lexend:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="css/app.css">
+    <link rel="stylesheet" href="css/app.css?v=3.3">
 </head>
-<body>
+<body class="project-documents-page">
     <div class="mobile-top-bar d-lg-none">
         <div class="d-flex align-items-center gap-2">
             <a href="project_details.php?id=<?= $pid ?>" class="text-main"><i class="bi bi-arrow-left fs-4"></i></a>
@@ -245,7 +246,7 @@ $p_count = $counts_map['PATIENT PART'] ?? 0;
             <div class="alert alert-success shadow-sm border-0"><?= htmlspecialchars($success_message) ?></div>
             <?php endif; ?>
 
-            <div class="row g-4">
+            <div class="row g-3 g-lg-4">
                 <div class="col-lg-4">
                     <div class="app-card">
                         <h6 class="card-title-v2 mb-3"><i class="bi bi-cloud-arrow-up me-2"></i>Upload File</h6>
@@ -296,6 +297,7 @@ $p_count = $counts_map['PATIENT PART'] ?? 0;
                             <div class="mb-3">
                                 <label class="stat-label mb-1">Select File</label>
                                 <input type="file" name="document" id="document_file" class="form-control input-v2" accept="image/*,application/pdf,.doc,.docx" required>
+                            </div>
                             <div class="mb-3 p-2 rounded bg-light border d-flex align-items-center justify-content-between" id="gps_status_container">
                                 <div class="d-flex align-items-center gap-2">
                                     <i class="bi bi-geo-alt-fill text-secondary" id="gps_icon"></i>
@@ -359,33 +361,38 @@ $p_count = $counts_map['PATIENT PART'] ?? 0;
                         <?php else: ?>
                             <div class="list-group list-group-flush">
                                 <?php foreach ($documents as $doc): ?>
-                                    <div class="list-group-item px-0 py-3 d-flex justify-content-between align-items-center">
-                                        <div class="d-flex align-items-center gap-3 w-75">
-                                            <div class="bg-light p-2 rounded text-primary">
+                                    <div class="list-group-item px-0 py-3 d-flex justify-content-between align-items-center border-bottom border-light">
+                                        <div class="d-flex align-items-center gap-3 w-100">
+                                            <div class="bg-light p-2 rounded text-primary flex-shrink-0" style="width: 48px; height: 48px; display: flex; align-items: center; justify-content: center;">
                                                 <i class="bi <?= (strpos($doc['file_name'], '.pdf') !== false) ? 'bi-file-earmark-pdf-fill text-danger' : 'bi-image text-primary' ?> fs-4"></i>
                                             </div>
-                                            <div class="text-truncate">
-                                                <h6 class="mb-0 fw-bold text-main" style="font-size: 0.95rem;">
-                                                    <a href="view_doc.php?id=<?= $doc['id'] ?>" target="_blank" class="text-decoration-none">
-                                                        <?= htmlspecialchars($doc['document_type']) ?>
-                                                    </a>
-                                                </h6>
-                                                <small class="text-muted d-block text-truncate">
-                                                    <span class="badge bg-secondary-subtle text-secondary me-2"><?= htmlspecialchars($doc['category']) ?></span>
-                                                    Uploaded on <?= date('d M Y h:i A', strtotime($doc['uploaded_at'])) ?>
-                                                </small>
+                                            <div class="flex-grow-1 text-truncate">
+                                                <div class="d-flex justify-content-between align-items-start">
+                                                    <h6 class="mb-0 fw-bold text-main" style="font-size: 1rem;">
+                                                        <a href="view_doc.php?id=<?= $doc['id'] ?>" target="_blank" class="text-decoration-none hover-primary">
+                                                            <?= htmlspecialchars($doc['document_type']) ?>
+                                                        </a>
+                                                    </h6>
+                                                    <div class="d-flex align-items-center gap-3 ms-2">
+                                                        <a href="view_doc.php?id=<?= $doc['id'] ?>" target="_blank" class="btn btn-link text-primary p-0" title="Download">
+                                                            <i class="bi bi-download"></i>
+                                                        </a>
+                                                        <?php if ($_SESSION['role'] === 'admin' || $_SESSION['role'] === 'super_admin'): ?>
+                                                        <form method="POST" onsubmit="return confirm('Delete this document?');" class="m-0">
+                                                            <input type="hidden" name="delete_doc_id" value="<?= $doc['id'] ?>">
+                                                            <button type="submit" class="btn btn-link text-danger p-0"><i class="bi bi-trash"></i></button>
+                                                        </form>
+                                                        <?php endif; ?>
+                                                    </div>
+                                                </div>
+                                                <div class="d-flex align-items-center gap-2 mt-1">
+                                                    <span class="badge bg-primary-subtle text-primary border border-primary-subtle px-2" style="font-weight: 500;"><?= htmlspecialchars($doc['category']) ?></span>
+                                                    <small class="text-muted">
+                                                        <i class="bi bi-clock me-1"></i><?= date('d M Y h:i A', strtotime($doc['uploaded_at'])) ?>
+                                                        &middot; By <?= htmlspecialchars($doc['uploader_name']) ?>
+                                                    </small>
+                                                </div>
                                             </div>
-                                        </div>
-                                        <div class="d-flex align-items-center gap-3">
-                                            <a href="view_doc.php?id=<?= $doc['id'] ?>" target="_blank" class="btn btn-link text-primary p-0" title="Download">
-                                                <i class="bi bi-download"></i>
-                                            </a>
-                                            <?php if ($_SESSION['role'] === 'admin' || $_SESSION['role'] === 'super_admin'): ?>
-                                            <form method="POST" onsubmit="return confirm('Delete this document?');">
-                                                <input type="hidden" name="delete_doc_id" value="<?= $doc['id'] ?>">
-                                                <button type="submit" class="btn btn-link text-danger p-0"><i class="bi bi-trash"></i></button>
-                                            </form>
-                                            <?php endif; ?>
                                         </div>
                                     </div>
                                 <?php endforeach; ?>
@@ -561,17 +568,16 @@ $p_count = $counts_map['PATIENT PART'] ?? 0;
                     // Try low accuracy as fallback (Network based)
                     gpsText.textContent = "Retrying (Network)...";
                     navigator.geolocation.getCurrentPosition(success, (err2) => {
-                        gpsText.textContent = "Location Failed";
+                        const finalMsg = "Location Failed: " + err2.message + " (Code: " + err2.code + ")";
+                        gpsText.textContent = "Failed";
                         gpsText.className = "small fw-bold text-danger";
                         gpsIcon.className = "bi bi-exclamation-triangle-fill text-danger";
                         gpsIcon.classList.remove('animate-pulse');
                         updateUploadButton();
                         
-                        let msg = "Could not get your location.";
-                        if (err2.code === 3) msg = "Location request timed out. Please check your internet/GPS signal.";
-                        else if (err2.code === 2) msg = "Location unavailable. Try moving to an open area.";
-                        
-                        console.error("Final GPS Failure:", msg);
+                        console.error("Final GPS Failure:", finalMsg);
+                        // showToast is available from sidebar.php
+                        if(typeof showToast === 'function') showToast(finalMsg);
                     }, lowAccuracyOptions);
                 }
             }

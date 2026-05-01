@@ -68,7 +68,7 @@ if (!$is_overdue && $tat_days < 3) $tat_class = 'text-warning';
     <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&family=Lexend:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
-    <link rel="stylesheet" href="css/app.css">
+    <link rel="stylesheet" href="css/app.css?v=3.3">
     <style>
         .detail-row {
             display: flex;
@@ -130,7 +130,7 @@ if (!$is_overdue && $tat_days < 3) $tat_class = 'text-warning';
         </header>
 
         <div class="app-container">
-            <div class="row g-4">
+            <div class="row g-3 g-lg-4">
                 <div class="col-lg-8">
                      <div class="d-flex gap-3 mb-4">
                         <div class="d-flex align-items-center gap-2 px-3 py-2 rounded-pill bg-success-subtle text-success border border-success-subtle">

@@ -242,13 +242,18 @@ if (!function_exists('render_sidebar_items')) {
                 tempA.href = href;
                 const absoluteUrl = tempA.href;
 
-                // Open in a new tab/window
-                const newWin = window.open(absoluteUrl, '_blank');
-                if (newWin) {
-                    newWin.focus();
-                } else {
-                    // Fallback if popup blocker or webview blocks window.open
+                // For Mobile Apps/WebViews: target="_blank" often fails.
+                // We try to open it, if it fails or if we detect mobile, we might use location.href
+                const isMobileApp = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+                
+                if (isMobileApp) {
+                    // Direct navigation works better for triggering app-level browser or download handlers
                     window.location.href = absoluteUrl;
+                } else {
+                    const newWin = window.open(absoluteUrl, '_blank');
+                    if (!newWin) {
+                        window.location.href = absoluteUrl;
+                    }
                 }
             }
         }, true);
