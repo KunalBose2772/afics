@@ -1125,15 +1125,15 @@ $team_managers = $pdo->query("SELECT * FROM users WHERE role IN ('team_manager',
                                 <h6 class="text-primary fw-bold mb-0" style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em;">Patient & Case Identity</h6>
                             </div>
                             <div class="col-md-6">
-                                <label class="stat-label mb-1">AFICS ID <span class="text-danger">*</span></label>
+                                <label class="stat-label mb-1">Reference ID <span class="text-danger">*</span></label>
                                 <div class="input-group">
-                                    <input type="text" name="claim_number" id="auto_claim_number" class="input-v2 form-control" placeholder="Generating..." pattern="[A-Z0-9-]+" title="Please enter an alphanumeric AFICS ID" required>
+                                    <input type="text" name="claim_number" id="auto_claim_number" class="input-v2 form-control" placeholder="Generating..." pattern="[A-Z0-9-]+" title="Please enter an alphanumeric Reference ID" required>
                                     <button class="btn btn-outline-secondary" type="button" onclick="generateClaimNumber()"><i class="bi bi-arrow-clockwise"></i></button>
                                 </div>
-                                <div class="invalid-feedback">Valid alphanumeric AFICS ID required.</div>
+                                <div class="invalid-feedback">Valid alphanumeric Reference ID required.</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="stat-label mb-1">Claim Number <span class="text-danger">*</span></label>
+                                <label class="stat-label mb-1">Insurer Claim Number <span class="text-danger">*</span></label>
                                 <input type="text" name="manual_claim_number" id="manual_claim_number" class="input-v2" placeholder="Enter insurer claim number" required>
                                 <div class="invalid-feedback">Claim Number is required.</div>
                             </div>
@@ -1428,12 +1428,12 @@ $team_managers = $pdo->query("SELECT * FROM users WHERE role IN ('team_manager',
                         
                         <div class="row g-3">
                             <div class="col-md-6">
-                                <label class="stat-label mb-1">AFICS ID</label>
+                                <label class="stat-label mb-1">Reference ID</label>
                                 <input type="text" name="claim_number" id="edit_claim_number" class="input-v2" required>
                                 <div class="invalid-feedback">Required.</div>
                             </div>
                             <div class="col-md-6">
-                                <label class="stat-label mb-1">Claim Number</label>
+                                <label class="stat-label mb-1">Insurer Claim Number</label>
                                 <input type="text" name="manual_claim_number" id="edit_manual_claim_number" class="input-v2" placeholder="Insurer claim number">
                             </div>
                             <div class="col-md-4">

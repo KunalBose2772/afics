@@ -8,7 +8,7 @@ if (!$doc_id) {
 }
 
 // Fetch Document Details
-$stmt = $pdo->prepare("SELECT pd.*, p.claim_number, p.title as project_title FROM project_documents pd JOIN projects p ON pd.project_id = p.id WHERE pd.id = ?");
+$stmt = $pdo->prepare("SELECT pd.*, p.claim_number, p.manual_claim_number, p.title as project_title FROM project_documents pd JOIN projects p ON pd.project_id = p.id WHERE pd.id = ?");
 $stmt->execute([$doc_id]);
 $doc = $stmt->fetch();
 
@@ -171,7 +171,12 @@ $is_pdf = ($ext === 'pdf');
         </a>
         <div class="doc-info">
             <h1><?= htmlspecialchars($doc['document_type']) ?></h1>
-            <p>Claim #<?= htmlspecialchars($doc['claim_number']) ?> &middot; <?= htmlspecialchars($doc['project_title']) ?></p>
+            <p>
+                <?php if (!empty($doc['manual_claim_number'])): ?>
+                    Claim: <?= htmlspecialchars($doc['manual_claim_number']) ?> &middot;
+                <?php endif; ?>
+                Ref: <?= htmlspecialchars($doc['claim_number']) ?> &middot; <?= htmlspecialchars($doc['project_title']) ?>
+            </p>
         </div>
         <div style="width: 60px;"></div> <!-- Spacer to balance header -->
     </div>

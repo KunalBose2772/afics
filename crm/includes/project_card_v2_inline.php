@@ -101,9 +101,9 @@ $fine_status = ($project['is_fine_confirmed'] ?? 0) ? 'Confirmed' : 'Calculated'
                 </a>
                 <div class="d-flex align-items-center flex-wrap gap-1">
                     <?php if(!empty($project['manual_claim_number'])): ?>
-                    <small class="text-dark fw-bold me-1 font-monospace" style="font-size:0.8rem;"><?= htmlspecialchars($project['manual_claim_number']) ?></small>
+                    <small class="text-dark fw-bold me-1 font-monospace" style="font-size:0.825rem;" title="Claim Number">C: <?= htmlspecialchars($project['manual_claim_number']) ?></small>
                     <?php endif; ?>
-                    <small class="text-muted fw-semibold font-monospace" style="font-size:0.7rem;" title="AFICS ID"><?= htmlspecialchars($project['claim_number'] ?? 'N/A') ?></small>
+                    <small class="text-muted fw-semibold font-monospace" style="font-size:0.7rem;" title="Reference ID">R: <?= htmlspecialchars($project['claim_number'] ?? 'N/A') ?></small>
                     <?php if(($project['doc_count'] ?? 0) > 0): ?>
                     <span class="badge bg-light text-primary border me-2" title="<?= $project['doc_count'] ?> documents attached" style="padding: 2px 6px; font-size: 0.7rem; border-radius: 4px;">
                         <i class="bi bi-paperclip"></i> <?= $project['doc_count'] ?>

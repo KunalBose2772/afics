@@ -194,7 +194,7 @@ $p_count = $counts_map['PATIENT PART'] ?? 0;
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Documents - <?= htmlspecialchars($project['claim_number']) ?></title>
+    <title>Documents - <?= htmlspecialchars($project['manual_claim_number'] ?: $project['claim_number']) ?></title>
     <link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&family=Lexend:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
@@ -219,7 +219,12 @@ $p_count = $counts_map['PATIENT PART'] ?? 0;
                     </a>
                     <div>
                         <h1 class="mb-0" style="font-size: 1.5rem;">Project Documents</h1>
-                        <p class="text-muted mb-0 small">Claim #<?= htmlspecialchars($project['claim_number']) ?> &middot; <?= htmlspecialchars($project['title']) ?></p>
+                        <p class="text-muted mb-0 small">
+                            <?php if (!empty($project['manual_claim_number'])): ?>
+                                <span class="fw-bold text-dark">Claim: <?= htmlspecialchars($project['manual_claim_number']) ?></span> &middot; 
+                            <?php endif; ?>
+                            Ref: <?= htmlspecialchars($project['claim_number']) ?> &middot; <?= htmlspecialchars($project['title']) ?>
+                        </p>
                     </div>
                 </div>
                 <?php if ($is_ho_staff || $curr_role == 'doctor'): ?>
